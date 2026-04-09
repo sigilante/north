@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache urbit binary
+        id: cache-urbit
+        uses: actions/cache@v4
+        with:
+          path: ~/.urbit-bin
+          key: urbit-linux-x86_64-v1
+
+      - name: Install urbit
+        if: steps.cache-urbit.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.urbit-bin
+          curl -L https://urbit.org/install/linux-x86_64/latest \
+            | tar xJk --strip-components=1 -C ~/.urbit-bin
+          chmod +x ~/.urbit-bin/urbit
+
+      - name: Add urbit to PATH
+        run: echo "$HOME/.urbit-bin" >> "$GITHUB_PATH"
+
+      - name: Symlink to ~/bin/urbit (expected by test script)
+        run: |
+          mkdir -p ~/bin
+          ln -sf ~/.urbit-bin/urbit ~/bin/urbit
+
+      - name: Run North tests
+        run: bash tests/test-north.sh

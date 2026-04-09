@@ -43,8 +43,10 @@
 ::  Token-list evaluator
 ::  words use cord names so Forth symbols (+, *, etc.) are valid
 +$  token
-  $%  [%num n=@]    ::  unsigned literal
-      [%word w=@t]  ::  word name
+  $%  [%num n=@]           ::  unsigned literal
+      [%word w=@t]         ::  word name
+      [%zbranch offset=@]  ::  0BRANCH: pop flag; if 0 skip forward by offset
+      [%branch offset=@]   ::  BRANCH: unconditional skip forward by offset
   ==
 +$  prog  (list token)
 --
@@ -104,7 +106,19 @@
   =/  s2   (drop s1)
   (push (push (push s2 pen) ult) pen)
 :: ROT ( s -- s' )  ( a b c -- b c a )
-++  rot  !!
+++  rot
+  |=  s=stak
+  ^-  stak
+  ?:  (lth (lent s) 3)  s
+  =/  c    (rear s)
+  =/  s1   (drop s)
+  =/  b    (rear s1)
+  =/  s2   (drop s1)
+  =/  a    (rear s2)
+  =/  s3   (drop s2)
+  (push (push (push s3 b) c) a)
+:: FORTH-TRUE - max direct atom in Vere64 (2^63-1); avoids indirect atom heap lookup
+++  forth-true  0x7fff.ffff.ffff.ffff
 :: POP - remove TOS, assert atom, return [atom new-stack]
 ++  pop
   |=  s=stak
@@ -123,6 +137,7 @@
   ?:  =(w 'drop')   (drop s)
   ?:  =(w 'swap')   (swap s)
   ?:  =(w 'over')   (over s)
+  ?:  =(w 'rot')    (rot s)
   ?:  =(w 'depth')  (push s (lent s))
   ::  Binary arithmetic ( a b -- c ), b=TOS
   ?:  =(w '+')
@@ -157,22 +172,38 @@
   ?:  =(w '1-')
     =^  a=@  s  (pop s)
     (push s (dec:ua a))
-  ::  Comparisons ( a b -- flag ), b=TOS
+  ::  Comparisons ( a b -- flag ), b=TOS; Forth: forth-true=true, 0=false
   ?:  =(w '=')
     =^  b=@  s  (pop s)
     =^  a=@  s  (pop s)
-    (push s (eq:ua a b))
+    (push s ?:((eq:ua a b) forth-true 0))
   ?:  =(w '<')
     =^  b=@  s  (pop s)
     =^  a=@  s  (pop s)
-    (push s (lt:ua a b))
+    (push s ?:((lt:ua a b) forth-true 0))
   ?:  =(w '>')
     =^  b=@  s  (pop s)
     =^  a=@  s  (pop s)
-    (push s (gt:ua a b))
+    (push s ?:((gt:ua a b) forth-true 0))
   ?:  =(w '0=')
     =^  a=@  s  (pop s)
-    (push s (zeq:ua a))
+    (push s ?:((zeq:ua a) forth-true 0))
+  ::  Bitwise ( a b -- c ), b=TOS
+  ?:  =(w 'and')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (dis a b))
+  ?:  =(w 'or')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (con a b))
+  ?:  =(w 'xor')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (mix a b))
+  ?:  =(w 'invert')
+    =^  a=@  s  (pop s)
+    (push s (mix a forth-true))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against a stack
 ++  eval
@@ -180,8 +211,14 @@
   ^-  stak
   ?~  p  s
   ?-  -.i.p
-    %num   $(p t.p, s (push s n.i.p))
-    %word  $(p t.p, s (run-word w.i.p s))
+    %num      $(p t.p, s (push s n.i.p))
+    %word     $(p t.p, s (run-word w.i.p s))
+    %zbranch
+      =^  flag=@  s  (pop s)
+      ?:  =(0 flag)
+        $(p (slag offset.i.p t.p))
+      $(p t.p)
+    %branch    $(p (slag offset.i.p t.p))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -382,10 +419,10 @@
     !(even:ua a)
   --
 :: Tier 3: Bitwise Logic
-++  and  !!
-++  or   !!
-++  xor  !!
-++  not  !!
+++  and     |=([a=@ b=@] ^-(@ (dis a b)))
+++  or      |=([a=@ b=@] ^-(@ (con a b)))
+++  xor     |=([a=@ b=@] ^-(@ (mix a b)))
+++  invert  |=(a=@ ^-(@ (mix a forth-true)))
 :: Tier 4: Return Stack
 ++  rpush  !!
 :: Tier 5: Memory/Tree Navigation
