@@ -1,11 +1,8 @@
-:: North Core Primitives (40 words)
+:: North Core Primitives
 =>
 |%
-::  Stacks are rightwards-growing lists.
 +$  stak  (list *)
-::  Lexicons are ordered words with code.
 +$  lexi  (list [term *])
-::  state structure
 +$  state
   $:  %uno
       dict=lexi
@@ -14,125 +11,190 @@
       r-stack=stak
       d-stack=stak
   ==
-
 +$  word-entry
-  $:  name=term                       ::  word name
+  $:  name=term
       flags=word-flags
-      formula=nock                    ::  executable Nock formula
+      formula=nock
   ==
-
 +$  word-flags
-  $:  immediate=?                     ::  execute even in compile mode
-      hidden=?                        ::  hide during search
+  $:  immediate=?
+      hidden=?
   ==
-
 +$  settings-map
-  $:  state=?                         ::  0=interpret, 1=compile
-      base=@ud                        ::  number base (10, 16, etc.)
-      >in=@ud                         ::  position in TIB
-      #tib=@ud                        ::  length of TIB
-      here=@ud                        ::  next free dict position
-      depth=@ud                       ::  data stack depth
+  $:  state=?
+      base=@ud
+      tin=@ud
+      ntib=@ud
+      here=@ud
+      depth=@ud
   ==
-
 +$  buffer-map
-  $:  tib=tape                        ::  terminal input buffer
-      word-buffer=tape                ::  parsed word
-      pad=tape                        ::  scratch pad
-      pic-buffer=tape                 ::  pictured numeric output
-      comp-buffer=(list @)            ::  compilation buffer
+  $:  tib=tape
+      word-buffer=tape
+      pad=tape
+      pic-buffer=tape
+      comp-buffer=(list @)
   ==
-
 +$  effect
-  $%  [%read-line ~]                  ::  request input
-      [%write-char c=@t]              ::  output char
-      [%write-line t=tape]            ::  output line
+  $%  [%read-line ~]
+      [%write-char c=@t]
+      [%write-line t=tape]
   ==
+::  Token-list evaluator
+::  words use cord names so Forth symbols (+, *, etc.) are valid
++$  token
+  $%  [%num n=@]    ::  unsigned literal
+      [%word w=@t]  ::  word name
+  ==
++$  prog  (list token)
 --
 ::
-|_  =stak
-:: Tier 0: Stack Manipulation (5) - Fundamental, pure subject operations
-:: WELD
+|%
+:: Tier 0: Stack Manipulation
+:: WELD - concatenate two stacks
 ++  weld
-  |=  [a=^stak b=^stak]
-  ^-  ^stak
-  ?:  =(0 (len a))  b
-  ?:  =(0 (len b))  a
+  |=  [a=stak b=stak]
+  ^-  stak
   |-
   ?~  a  b
   [i.a $(a t.a)]
-:: REAR
+:: REAR - get TOS (last element)
 ++  rear
-  |=  =^stak
-  ^-  ^^stak
+  |=  a=stak
+  ^-  *
   ?>  ?=(^ a)
   ?:  =(~ t.a)  i.a
   $(a t.a)
-:: PUSH    ( a -- a a )           Navigate to TOS, snoc back
+:: PUSH ( s a -- s' )  Append a onto stack s
 ++  push
-  |=  a=*
-  ^-  ^stak
-  ?:  =(0 (len stak))  ~[a]
-  :: In pure Nock terms, the most efficient thing to do is get the length
-  :: of the list and directly append at the address.
-  (weld stak ~[a])
-:: DUP     ( a -- a a )           Navigate to TOS, snoc back
+  |=  [s=stak a=*]
+  ^-  stak
+  (weld s ~[a])
+:: DUP ( s -- s' )  Duplicate TOS
 ++  dup
-  |.
-  ^-  ^stak
-  ?:  =(0 (len stak))  stak
-  (weld stak (rear stak))
-:: DROP    ( a -- )               Remove last element
+  |=  s=stak
+  ^-  stak
+  ?~  s  s
+  (push s (rear s))
+:: DROP ( s -- s' )  Remove TOS
 ++  drop
-  |.
-  ^-  ^stak
-  ?~  stak  ~
-  ?:  =(~ t.stak)  ~
-  [i.stak $(stak t.stak)]
-:: SWAP    ( a b -- b a )         Rebuild last two swapped
+  |=  s=stak
+  ^-  stak
+  ?~  s  ~
+  ?:  =(~ t.s)  ~
+  [i.s $(s t.s)]
+:: SWAP ( s -- s' )  ( a b -- b a )
 ++  swap
-  |.
-  ^-  ^stak
-  ?:  =(0 (len stak))  stak  :: TODO should crash?
-  ?:  =(1 (len stak))  stak
-  =/  ult=*  (rear stak)
-  =.  stak  (drop stak)
-  =/  pen=*  (rear stak)
-  =.  stak  (drop stak)
-  (push ult (push pen))
-:: OVER    ( a b -- a b a )       Copy second, snoc to end
+  |=  s=stak
+  ^-  stak
+  ?:  (lth (lent s) 2)  s
+  =/  ult  (rear s)
+  =/  s1   (drop s)
+  =/  pen  (rear s1)
+  =/  s2   (drop s1)
+  (push (push s2 ult) pen)
+:: OVER ( s -- s' )  ( a b -- a b a )
 ++  over
-  |.
-  ^-  ^stak
-  ?:  =(0 (len stak))  stak
-  ?:  =(1 (len stak))  stak
-  =/  ult=*  (rear stak)
-  =.  stak  (drop stak)
-  =/  pen=*  (rear stak)
-  =.  stak  (drop stak)
-  (push pen (push ult))  :: TODO inefficient and a bit wrong still
-:: ROT     ( a b c -- b c a )     Rotate top three
+  |=  s=stak
+  ^-  stak
+  ?:  (lth (lent s) 2)  s
+  =/  ult  (rear s)
+  =/  s1   (drop s)
+  =/  pen  (rear s1)
+  =/  s2   (drop s1)
+  (push (push (push s2 pen) ult) pen)
+:: ROT ( s -- s' )  ( a b c -- b c a )
 ++  rot  !!
-:: Tier 1: Unsigned Arithmetic - Forth ints are signed, but we start somewhere
+:: POP - remove TOS, assert atom, return [atom new-stack]
+++  pop
+  |=  s=stak
+  ^-  [@ stak]
+  ?>  ?=(^ s)
+  =/  v  (rear s)
+  ?>  ?=(@ v)
+  [v (drop s)]
+:: RUN-WORD - execute a named primitive against the stack
+::  NOTE: comparison results use Hoon loob: 0=true, 1=false
+++  run-word
+  |=  [w=@t s=stak]
+  ^-  stak
+  ::  Stack ops
+  ?:  =(w 'dup')    (dup s)
+  ?:  =(w 'drop')   (drop s)
+  ?:  =(w 'swap')   (swap s)
+  ?:  =(w 'over')   (over s)
+  ?:  =(w 'depth')  (push s (lent s))
+  ::  Binary arithmetic ( a b -- c ), b=TOS
+  ?:  =(w '+')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (add:ua a b))
+  ?:  =(w '-')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (sub:ua a b))
+  ?:  =(w '*')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (mul:ua a b))
+  ?:  =(w '/')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (div:ua a b))
+  ?:  =(w 'mod')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s q:(divmod:ua a b))
+  ?:  =(w '/mod')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    =/  r  (divmod:ua a b)
+    (push (push s q.r) p.r)
+  ::  Unary arithmetic ( a -- b )
+  ?:  =(w '1+')
+    =^  a=@  s  (pop s)
+    (push s (inc:ua a))
+  ?:  =(w '1-')
+    =^  a=@  s  (pop s)
+    (push s (dec:ua a))
+  ::  Comparisons ( a b -- flag ), b=TOS
+  ?:  =(w '=')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (eq:ua a b))
+  ?:  =(w '<')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (lt:ua a b))
+  ?:  =(w '>')
+    =^  b=@  s  (pop s)
+    =^  a=@  s  (pop s)
+    (push s (gt:ua a b))
+  ?:  =(w '0=')
+    =^  a=@  s  (pop s)
+    (push s (zeq:ua a))
+  ~|([%unknown-word w] !!)
+:: EVAL - run a token program against a stack
+++  eval
+  |=  [p=prog s=stak]
+  ^-  stak
+  ?~  p  s
+  ?-  -.i.p
+    %num   $(p t.p, s (push s n.i.p))
+    %word  $(p t.p, s (run-word w.i.p s))
+  ==
+:: Tier 1: Unsigned Arithmetic
 ++  ua
   |%
-  :: 1+      ( a -- a+1 )           Increment (opcode 4)
   ++  inc
-    |=  a=@
-    ^-  @
+    |=  a=@  ^-  @
     +(a)
-  :: =       ( a b -- f )           Equal (opcode 5)
   ++  eq
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     =(a b)
-  :: 0=      ( a -- f )             Zero test (0 =)
   ++  zeq
-    |=  a=@
-    ^-  ?
+    |=  a=@  ^-  ?
     =(0 a)
-  ::
-  :: 1-      ( a -- a-1 )           Decrement
   ++  dec
     |=  a=@
     ?<  =(0 a)
@@ -140,285 +202,209 @@
     |-  ^-  @
     ?:  =(a +(b))  b
     $(b +(b))
-  ::
-  :: +       ( a b -- c )           Add
   ++  add
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     ?:  =(0 a)  b
     $(a (dec a), b +(b))
-  :: <       ( a b -- f )           Less than (jet: %lth)
   ++  lt
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     ?&  !=(a b)
         |-
         ?|  =(0 a)
             ?&  !=(0 b)
                 $(a (dec a), b (dec b))
     ==  ==  ==
-  :: >       ( a b -- f )           Greater (derived: SWAP <)
   ++  gt
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     ?&  !=(a b)
-        |-  
+        |-
         ?|  =(0 b)
             ?&  !=(0 a)
                 $(a (dec a), b (dec b))
     ==  ==  ==
-  :: <=      ( a b -- f )           Less than or equal
   ++  lte
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     ?:  =(a b)  %&
     ?|  =(0 a)
         ?&  !=(0 b)
             $(a (dec a), b (dec b))
     ==  ==
-  :: >=      ( a b -- f )           Greater than or equal
   ++  gte
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     ?:  =(a b)  %&
     ?|  =(0 b)
         ?&  !=(0 a)
             $(a (dec a), b (dec b))
     ==  ==
-  :: -       ( a b -- c )           Subtract
   ++  sub
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     ?:  =(0 b)  a
     $(a (dec a), b (dec b))
-  :: *       ( a b -- c )           Multiply
   ++  mul
-    |:  [a=`@`1 b=`@`1]
-    ^-  @
+    |:  [a=`@`1 b=`@`1]  ^-  @
     =+  c=0
     |-
     ?:  =(0 a)  c
     $(a (dec a), c (add b c))
-  :: /MOD    ( a b -- r q )         Divide with remainder
+  :: divmod returns [quotient remainder]
   ++  divmod
-    |:  [a=`@`1 b=`@`1]
-    ^-  [p=@ q=@]
+    |:  [a=`@`1 b=`@`1]  ^-  [p=@ q=@]
     ?<  =(0 b)
     =+  c=0
     |-
     ?:  (lth a b)  [c a]
     $(a (sub a b), c +(c))
-  :: /       ( a b -- q )           Divide
   ++  div
-    |:  [a=`@`1 b=`@`1]
-    ^-  @
+    |:  [a=`@`1 b=`@`1]  ^-  @
     ?<  =(0 b)
     =+  c=0
     |-
     ?:  (lth a b)  c
     $(a (sub a b), c +(c))
-  :: bex     ( a -- b )           Bit-exponentiate
   ++  bex
-    |=  a=@
-    ^-  @
+    |=  a=@  ^-  @
     ?:  =(0 a)  1
     (mul 2 $(a (dec a)))
-  :: rsh     ( a b -- c )           Right shift
   ++  rsh
     |=  [a=@ b=@]
     (div b (bex (mul (bex a) 1)))
-  :: met     ( a b -- c )           Bit width
   ++  met
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     =+  c=0
     |-
     ?:  =(0 b)  c
-  $(b (rsh a b), c +(c))
-  :: even?   ( a -- f )           Even test
+    $(b (rsh a b), c +(c))
   ++  even
-    |=  a=@
-    ^-  ?
-    =(0 (cut 0 [(met a 0) 1] a))
+    |=  a=@  ^-  ?
+    =(0 (cut 0 [0 1] a))
   --
-:: Tier 2: Signed Arithmetic (ZigZag @sd)
+:: Tier 2: Signed Arithmetic (ZigZag encoding)
 ++  zz
-  :: 1+      ( a -- a+1 )           Increment (opcode 4)
+  |%
   ++  inc
-    |=  a=@
-    ^-  @
+    |=  a=@  ^-  @
     ?:  (even:ua a)  +(+(a))
     ?:  =(1 a)  0
     (sub:ua a 2)
-  :: 1-      ( a -- a-1 )           Decrement (jet or derived)
   ++  dec
-    |=  a=@
-    ^-  @
+    |=  a=@  ^-  @
     ?:  =(0 a)  1
     ?:  (even:ua a)  (sub:ua a 2)
     +(+(a))
-  :: NEGATE  ( a -- -a )            Negate (jet or 0 SWAP -)
   ++  negate
-    |=  a=@
-    ^-  @
+    |=  a=@  ^-  @
     ?:  =(0 a)  0
-    ?:  (even:ua a)  (dec a)
+    ?:  (even:ua a)  (dec:ua a)
     +(a)
-  :: decode  ( a -- s b )             Decode
   ++  decode
-    |=  a=@
-    ^-  [? @]
+    |=  a=@  ^-  [? @]
     ?:  =(0 a)  [%& 0]
-    ?:  (even:ua a)  [%& (div a 2)]
-    [%| (div +(a) 2)]
-  :: encode  ( s a -- b )             Encode
+    ?:  (even:ua a)  [%& (div:ua a 2)]
+    [%| (div:ua +(a) 2)]
   ++  encode
-    |=  [s=? a=@]
-    ^-  @
+    |=  [s=? a=@]  ^-  @
     ?:  =(0 a)  0
-    ?:  s  (mul 2 a)
-    (dec (mul 2 a))
-  :: +       ( a b -- c )           Add 
+    ?:  s  (mul:ua 2 a)
+    (dec:ua (mul:ua 2 a))
   ++  add
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     =/  [sa=? ma=@]  (decode a)
     =/  [sb=? mb=@]  (decode b)
     ?:  =(0 ma)  (encode sb mb)
     ?:  =(0 mb)  (encode sa ma)
     %-  encode
-    ?:  =(sa sb)  [sa (add:ua ma mb)]          :: |a| + |b|
-    ?:  (gt:ua ma mb)  [sa (sub:ua ma mb)]     :: |a| - |b|
-    ?:  (lt:ua ma mb)  [sb (sub:ua mb ma)]     :: |b| - |a|
+    ?:  =(sa sb)        [sa (add:ua ma mb)]
+    ?:  (gt:ua ma mb)   [sa (sub:ua ma mb)]
+    ?:  (lt:ua ma mb)   [sb (sub:ua mb ma)]
     [%.y 0]
-  :: -       ( a b -- c )           Subtract
   ++  sub
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     =/  [sa=? ma=@]  (decode a)
     =/  [sb=? mb=@]  (decode b)
     ?:  =(0 ma)  (encode !sb mb)
     ?:  =(0 mb)  (encode sa ma)
     %-  encode
     ?:  =(sa sb)
-      ?:  (gt:ua ma mb)  [sa (sub:ua ma mb)]   :: |a| > |b|: keep sign of a
-      ?:  (lt:ua ma mb)  [!sa (sub:ua mb ma)]  :: |a| < |b|: flip sign
-      [%.y 0]                                  :: |a| = |b|: zero
-    ::  Different signs: add magnitudes, keep sign of a
+      ?:  (gt:ua ma mb)  [sa (sub:ua ma mb)]
+      ?:  (lt:ua ma mb)  [!sa (sub:ua mb ma)]
+      [%.y 0]
     [sa (add:ua ma mb)]
-  :: *       ( a b -- c )           Multiply
   ++  mul
-    |=  [a=@ b=@]
-    ^-  @
+    |=  [a=@ b=@]  ^-  @
     =/  [sa=? ma=@]  (decode a)
     =/  [sb=? mb=@]  (decode b)
-    ::  Zero cases
     ?:  |(=(0 ma) =(0 mb))  0
     %-  encode
     :-  =(sa sb)
     (mul:ua ma mb)
-  :: /MOD    ( a b -- r q )         Divide with remainder
+  :: divmod returns [remainder quotient] (FORTH /MOD order: TOS=quotient)
   ++  divmod
-    |=  [a=@ b=@]
-    ^-  [r=@ q=@]
+    |=  [a=@ b=@]  ^-  [r=@ q=@]
     =/  [sa=? ma=@]  (decode a)
     =/  [sb=? mb=@]  (decode b)
     ?<  =(0 mb)
-    ?:  =(0 ma)  [%& 0]
-    =/  [ur=@ uq=@]  (divmod:ua ma mb)
+    ?:  =(0 ma)  [0 0]
+    =/  [uq=@ ur=@]  (divmod:ua ma mb)
     :-  (encode sa ur)
     (encode =(sa sb) uq)
-  :: /       ( a b -- q )           Divide (derived from /MOD)
   ++  div
-    |=  [a=@ b=@]
-    ^-  [r=@ q=@]
+    |=  [a=@ b=@]  ^-  @
     =/  [sa=? ma=@]  (decode a)
     =/  [sb=? mb=@]  (decode b)
     ?<  =(0 mb)
-    ?:  =(0 ma)  [%& 0]
-    =/  [ur=@ uq=@]  (divmod:ua ma mb)
-    (encode sa ur)
-  :: =       ( a b -- f )           Equal
+    ?:  =(0 ma)  0
+    =/  [uq=@ ur=@]  (divmod:ua ma mb)
+    (encode =(sa sb) uq)
   ++  eq
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     =(a b)
-  :: <       ( a b -- f )           Less than (jet: %lth)
   ++  lt
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     =/  pa  (even:ua a)
     =/  pb  (even:ua b)
-    ?:  ?&(pa pb)  (lt:ua a b)
+    ?:  ?&(pa pb)   (lt:ua a b)
     ?:  ?&(!pa !pb)  (gt:ua a b)
     ?:  ?&(!pa pb)  %&
     ?>  ?&(pa !pb)  %|
-  :: >       ( a b -- f )           Greater (derived: SWAP <)
   ++  gt
-    |=  [a=@ b=@]
-    ^-  ?
+    |=  [a=@ b=@]  ^-  ?
     =/  pa  (even:ua a)
     =/  pb  (even:ua b)
-    ?:  ?&(pa pb)  (gt:ua a b)
+    ?:  ?&(pa pb)   (gt:ua a b)
     ?:  ?&(!pa !pb)  (lt:ua a b)
     ?:  ?&(!pa pb)  %|
     ?>  ?&(pa !pb)  %&
-  :: 0=      ( a -- f )             Zero test (0 =)
   ++  zeq
-    |=  a=@
-    ^-  ?
+    |=  a=@  ^-  ?
     =(0 a)
-  :: 0<      ( a -- f )             Negative test (0 <)
   ++  zlt
-    |=  a=@
-    ^-  ?
+    |=  a=@  ^-  ?
     !(even:ua a)
   --
-:: Tier 3: Bitwise Logic (4) - Bit manipulation
-:: AND     ( a b -- c )           Bitwise AND (jet)
+:: Tier 3: Bitwise Logic
 ++  and  !!
-:: OR      ( a b -- c )           Bitwise OR (jet)
-++  or  !!
-:: XOR     ( a b -- c )           Bitwise XOR (jet)
+++  or   !!
 ++  xor  !!
-:: NOT     ( a -- b )             Bitwise NOT (jet or -1 XOR)
 ++  not  !!
-:: Tier 4: Return Stack (3) - Control flow support
-:: >R      ( a -- ) (R: -- a )    Push to return stack
-++  push  !!
-:: R@      ( -- a ) (R: a -- a )  Copy from return stack
-:: Tier 5: Memory/Tree Navigation (2) - Core to Forth model
-:: @       ( addr -- value )      Fetch (navigate-to-axis)
+:: Tier 4: Return Stack
+++  rpush  !!
+:: Tier 5: Memory/Tree Navigation
 ++  fetch  !!
-:: !       ( value addr -- )      Store (update-at-axis)
 ++  store  !!
-:: Tier 6: Dictionary Basics (4) - Essential for definitions
-:: HERE    ( -- addr )            Dictionary pointer (from settings)
-++  here  !!
-:: ,       ( value -- )           Append to dictionary (comma)
-++  comma  !!
-:: CELL    ( -- n )               Cell size constant (1 for Nock)
-++  cell  !!
-:: ALLOT   ( n -- )               Allocate space (move HERE)
-++  allot  !!
-:: Tier 7: Interpreter Core (4) - The heart of Forth
-:: WORD    ( char -- c-addr )     Parse next word from TIB
-++  word  !!
-:: FIND    ( c-addr -- xt | 0 )   Search dictionary
-++  find  !!
-:: EXECUTE ( xt -- ... )          Execute word at xt
-++  execute  !!
-:: '       ( -- xt )              Get next word's xt (tick)
-++  tick  !!
-:: Tier 8: Compilation (5) - Building new words
-:: :       ( -- )                 Start definition (colon)
-++  colon  !!
-:: ;       ( -- )                 End definition (semicolon) IMMEDIATE
+:: Tier 6: Dictionary Basics
+++  here      !!
+++  comma     !!
+++  cell      !!
+++  allot     !!
+:: Tier 7: Interpreter Core
+++  word      !!
+++  find      !!
+++  execute   !!
+++  tick      !!
+:: Tier 8: Compilation
+++  colon     !!
 ++  semicolon  !!
-:: STATE   ( -- addr )            Compilation mode flag
-++  state  !!
-:: IMMEDIATE ( -- )               Mark last word immediate
+++  state      !!
 ++  immediate  !!
-:: CREATE  ( -- )                 Create dictionary entry
-++  create  !!
+++  create     !!
 --

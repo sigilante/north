@@ -1,55 +1,24 @@
-::
-::  The North (Nock Forth) Interpreter
-::
-::  Like Arvo itself, North is an executable noun with a well-definted
-::  lifecycle.  It is a stack-based virtual machine that executes Forth
-::  code read from its TIB (Terminal Input Buffer).
-::
-::  The primary loop is the QUIT loop, which is a simple REFILL-BEGIN-AGAIN
-::  loop that reads a line from the TIB, parses it, and executes it.
-::
-::  The parser is a simple state machine that reads a line from the TIB,
-::  parses it, and executes it.
-::
-/+  *north
-=>
+::  North - Nock Forth interpreter (stub agent)
+/+  default-agent, dbug
 |%
-++  nord  %544  :: the melting point of bismuth
++$  versioned-state  $%([%0 state-0])
++$  state-0  ~
 --
-|_  state=*
-++  quit  !!
+=|  state-0
+=*  state  -
+%-  agent:dbug
+^-  agent:gall
+|_  =bowl:gall
++*  this  .
+    def   ~(. (default-agent this %.n) bowl)
+++  on-init   `this^~
+++  on-save   !>(state)
+++  on-load   |=(vase `this^state)
+++  on-poke   on-poke:def
+++  on-watch  on-watch:def
+++  on-leave  on-leave:def
+++  on-peek   on-peek:def
+++  on-agent  on-agent:def
+++  on-arvo   on-arvo:def
+++  on-fail   on-fail:def
 --
-
-: QUIT ( -- )
-  BEGIN
-    REFILL           \ Get new line into TIB
-    BEGIN
-      BL WORD        \ Parse next word (delimiter = space)
-      DUP C@         \ Get length of parsed word
-    WHILE            \ While there are words...
-      FIND           \ Look up in dictionary
-      ?DUP IF        \ If found (xt on stack)
-        STATE @ IF   \ Are we compiling?
-          IMMEDIATE? IF  \ Is word immediate?
-            EXECUTE      \ Yes: execute even in compile mode
-          ELSE
-            ,            \ No: append xt to definition
-          THEN
-        ELSE         \ Interpreting mode
-          EXECUTE    \ Just execute it
-        THEN
-      ELSE           \ Not found in dictionary
-        NUMBER       \ Try to parse as number
-        ?DUP IF      \ Parsed successfully?
-          STATE @ IF   \ Compiling?
-            LIT ,      \ Yes: compile as literal
-            ,
-          THEN       \ (If interpreting, already on stack)
-        ELSE
-          ." Unknown word" CR
-          ABORT
-        THEN
-      THEN
-    REPEAT
-    ." ok" CR
-  AGAIN ;
