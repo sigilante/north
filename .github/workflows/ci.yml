@@ -23,7 +23,16 @@ jobs:
         if: steps.cache-urbit.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.urbit-bin
-          curl -L https://urbit.org/install/linux-x86_64/latest -o ~/.urbit-bin/urbit
+          # Fetch latest vere release tag then download the linux-x86_64 binary directly
+          VERE_TAG=$(curl -sL https://api.github.com/repos/urbit/vere/releases/latest \
+            | jq -r '.tag_name')
+          echo "vere tag: $VERE_TAG"
+          curl -L \
+            "https://github.com/urbit/vere/releases/download/${VERE_TAG}/linux-x86_64.tgz" \
+            -o /tmp/urbit.tgz
+          file /tmp/urbit.tgz
+          tar xzf /tmp/urbit.tgz -C ~/.urbit-bin
+          ls -la ~/.urbit-bin/
           chmod +x ~/.urbit-bin/urbit
 
       - name: Add urbit to PATH
