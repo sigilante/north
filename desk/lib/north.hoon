@@ -3,7 +3,7 @@
 |%
 +$  stak  (list *)
 +$  lexi  (list [term *])
-+$  state
++$  north
   $:  %uno
       dict=lexi
       settings=settings-map
@@ -127,97 +127,108 @@
   =/  v  (rear s)
   ?>  ?=(@ v)
   [v (drop s)]
-:: RUN-WORD - execute a named primitive against the stack
-::  NOTE: comparison results use Hoon loob: 0=true, 1=false
+:: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
-  |=  [w=@t s=stak]
-  ^-  stak
-  ::  Stack ops
-  ?:  =(w 'dup')    (dup s)
-  ?:  =(w 'drop')   (drop s)
-  ?:  =(w 'swap')   (swap s)
-  ?:  =(w 'over')   (over s)
-  ?:  =(w 'rot')    (rot s)
-  ?:  =(w 'depth')  (push s (lent s))
+  |=  [w=@t st=north]
+  ^-  north
+  =/  ds  d-stack.st
+  =/  rs  r-stack.st
+  ::  Stack ops ( d-stack only )
+  ?:  =(w 'dup')    st(d-stack (dup ds))
+  ?:  =(w 'drop')   st(d-stack (drop ds))
+  ?:  =(w 'swap')   st(d-stack (swap ds))
+  ?:  =(w 'over')   st(d-stack (over ds))
+  ?:  =(w 'rot')    st(d-stack (rot ds))
+  ?:  =(w 'depth')  st(d-stack (push ds (lent ds)))
   ::  Binary arithmetic ( a b -- c ), b=TOS
   ?:  =(w '+')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (add:ua a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (add:ua a b)))
   ?:  =(w '-')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (sub:ua a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (sub:ua a b)))
   ?:  =(w '*')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (mul:ua a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (mul:ua a b)))
   ?:  =(w '/')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (div:ua a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (div:ua a b)))
   ?:  =(w 'mod')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s q:(divmod:ua a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds q:(divmod:ua a b)))
   ?:  =(w '/mod')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
     =/  r  (divmod:ua a b)
-    (push (push s q.r) p.r)
+    st(d-stack (push (push ds q.r) p.r))
   ::  Unary arithmetic ( a -- b )
   ?:  =(w '1+')
-    =^  a=@  s  (pop s)
-    (push s (inc:ua a))
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (inc:ua a)))
   ?:  =(w '1-')
-    =^  a=@  s  (pop s)
-    (push s (dec:ua a))
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (dec:ua a)))
   ::  Comparisons ( a b -- flag ), b=TOS; Forth: forth-true=true, 0=false
   ?:  =(w '=')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s ?:((eq:ua a b) forth-true 0))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((eq:ua a b) forth-true 0)))
   ?:  =(w '<')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s ?:((lt:ua a b) forth-true 0))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((lt:ua a b) forth-true 0)))
   ?:  =(w '>')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s ?:((gt:ua a b) forth-true 0))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((gt:ua a b) forth-true 0)))
   ?:  =(w '0=')
-    =^  a=@  s  (pop s)
-    (push s ?:((zeq:ua a) forth-true 0))
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((zeq:ua a) forth-true 0)))
   ::  Bitwise ( a b -- c ), b=TOS
   ?:  =(w 'and')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (dis a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (dis a b)))
   ?:  =(w 'or')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (con a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (con a b)))
   ?:  =(w 'xor')
-    =^  b=@  s  (pop s)
-    =^  a=@  s  (pop s)
-    (push s (mix a b))
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (mix a b)))
   ?:  =(w 'invert')
-    =^  a=@  s  (pop s)
-    (push s (mix a forth-true))
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (mix a forth-true)))
+  ::  Tier 4: Return stack
+  ?:  =(w '>r')
+    =^  a=@  ds  (pop ds)
+    st(d-stack ds, r-stack (push rs a))
+  ?:  =(w 'r>')
+    =^  a=@  rs  (pop rs)
+    st(d-stack (push ds a), r-stack rs)
+  ?:  =(w 'r@')
+    st(d-stack (push ds (rear rs)))
   ~|([%unknown-word w] !!)
-:: EVAL - run a token program against a stack
+:: EVAL - run a token program against the interpreter state
 ++  eval
-  |=  [p=prog s=stak]
-  ^-  stak
-  ?~  p  s
+  |=  [p=prog st=north]
+  ^-  north
+  ?~  p  st
   ?-  -.i.p
-    %num      $(p t.p, s (push s n.i.p))
-    %word     $(p t.p, s (run-word w.i.p s))
+    %num      $(p t.p, st st(d-stack (push d-stack.st n.i.p)))
+    %word     $(p t.p, st (run-word w.i.p st))
     %zbranch
-      =^  flag=@  s  (pop s)
+      =/  ds  d-stack.st
+      =^  flag=@  ds  (pop ds)
       ?:  =(0 flag)
-        $(p (slag offset.i.p t.p))
-      $(p t.p)
+        $(p (slag offset.i.p t.p), st st(d-stack ds))
+      $(p t.p, st st(d-stack ds))
     %branch    $(p (slag offset.i.p t.p))
   ==
 :: Tier 1: Unsigned Arithmetic
@@ -424,7 +435,11 @@
 ++  xor     |=([a=@ b=@] ^-(@ (mix a b)))
 ++  invert  |=(a=@ ^-(@ (mix a forth-true)))
 :: Tier 4: Return Stack
-++  rpush  !!
+:: RPUSH ( st a -- st' )  Push atom onto return stack
+++  rpush
+  |=  [st=north a=@]
+  ^-  north
+  st(r-stack (push r-stack.st a))
 :: Tier 5: Memory/Tree Navigation
 ++  fetch  !!
 ++  store  !!
