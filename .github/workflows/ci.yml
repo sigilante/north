@@ -23,8 +23,8 @@ jobs:
         if: steps.cache-urbit.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.urbit-bin
-          curl -L https://urbit.org/install/linux-x86_64/latest \
-            | tar xJk --strip-components=1 -C ~/.urbit-bin
+          curl -L https://urbit.org/install/linux-x86_64/latest -o /tmp/urbit.tgz
+          tar xzf /tmp/urbit.tgz --strip-components=1 -C ~/.urbit-bin
           chmod +x ~/.urbit-bin/urbit
 
       - name: Add urbit to PATH
