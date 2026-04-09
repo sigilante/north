@@ -32,7 +32,7 @@ jobs:
             -o /tmp/urbit.tgz
           file /tmp/urbit.tgz
           tar xzf /tmp/urbit.tgz -C ~/.urbit-bin
-          ls -la ~/.urbit-bin/
+          mv ~/.urbit-bin/vere-*-linux-x86_64 ~/.urbit-bin/urbit
           chmod +x ~/.urbit-bin/urbit
 
       - name: Add urbit to PATH
