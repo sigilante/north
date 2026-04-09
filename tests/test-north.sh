@@ -36,60 +36,76 @@ check() {
 
 echo "=== Tier 0: Stack Ops ==="
 
-check "dup"        "(eval ~[[%num n=5] [%word w='dup']] ~)"              "~[5 5]"
-check "drop"       "(eval ~[[%num n=5] [%num n=3] [%word w='drop']] ~)" "~[5]"
-check "swap"       "(eval ~[[%num n=1] [%num n=2] [%word w='swap']] ~)" "~[2 1]"
-check "over"       "(eval ~[[%num n=1] [%num n=2] [%word w='over']] ~)" "~[1 2 1]"
-check "rot"        "(eval ~[[%num n=1] [%num n=2] [%num n=3] [%word w='rot']] ~)" "~[2 3 1]"
-check "depth-0"    "(eval ~[[%word w='depth']] ~)"                      "~[0]"
-check "depth-2"    "(eval ~[[%num n=1] [%num n=2] [%word w='depth']] ~)" "~[1 2 2]"
+check "dup"        "d-stack:(eval ~[[%num n=5] [%word w='dup']] *north)"              "~[5 5]"
+check "drop"       "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='drop']] *north)" "~[5]"
+check "swap"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='swap']] *north)" "~[2 1]"
+check "over"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='over']] *north)" "~[1 2 1]"
+check "rot"        "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%word w='rot']] *north)" "~[2 3 1]"
+check "depth-0"    "d-stack:(eval ~[[%word w='depth']] *north)"                      "~[0]"
+check "depth-2"    "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='depth']] *north)" "~[1 2 2]"
 
 echo ""
 echo "=== Tier 1: Unsigned Arithmetic ==="
 
-check "add"        "(eval ~[[%num n=3] [%num n=4] [%word w='+']] ~)"   "~[7]"
-check "sub"        "(eval ~[[%num n=10] [%num n=3] [%word w='-']] ~)"  "~[7]"
-check "mul"        "(eval ~[[%num n=25] [%num n=10] [%word w='*']] ~)" "~[250]"
-check "div"        "(eval ~[[%num n=10] [%num n=2] [%word w='/']] ~)"  "~[5]"
-check "mod"        "(eval ~[[%num n=10] [%num n=3] [%word w='mod']] ~)" "~[1]"
-check "/mod"       "(eval ~[[%num n=10] [%num n=3] [%word w='/mod']] ~)" "~[1 3]"
-check "1+"         "(eval ~[[%num n=4] [%word w='1+']] ~)"             "~[5]"
-check "1-"         "(eval ~[[%num n=4] [%word w='1-']] ~)"             "~[3]"
-check "compound"   "(eval ~[[%num n=25] [%num n=10] [%word w='*'] [%num n=50] [%word w='+']] ~)" "~[300]"
-check "dup-mul"    "(eval ~[[%num n=3] [%word w='dup'] [%word w='*']] ~)" "~[9]"
+check "add"        "d-stack:(eval ~[[%num n=3] [%num n=4] [%word w='+']] *north)"   "~[7]"
+check "sub"        "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='-']] *north)"  "~[7]"
+check "mul"        "d-stack:(eval ~[[%num n=25] [%num n=10] [%word w='*']] *north)" "~[250]"
+check "div"        "d-stack:(eval ~[[%num n=10] [%num n=2] [%word w='/']] *north)"  "~[5]"
+check "mod"        "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='mod']] *north)" "~[1]"
+check "/mod"       "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='/mod']] *north)" "~[1 3]"
+check "1+"         "d-stack:(eval ~[[%num n=4] [%word w='1+']] *north)"             "~[5]"
+check "1-"         "d-stack:(eval ~[[%num n=4] [%word w='1-']] *north)"             "~[3]"
+check "compound"   "d-stack:(eval ~[[%num n=25] [%num n=10] [%word w='*'] [%num n=50] [%word w='+']] *north)" "~[300]"
+check "dup-mul"    "d-stack:(eval ~[[%num n=3] [%word w='dup'] [%word w='*']] *north)" "~[9]"
 
 echo ""
 echo "=== Tier 1: Comparisons ==="
 
-check "= true"     "(eval ~[[%num n=3] [%num n=3] [%word w='=']] ~)"   "~[$T]"
-check "= false"    "(eval ~[[%num n=3] [%num n=4] [%word w='=']] ~)"   "~[$F]"
-check "< true"     "(eval ~[[%num n=2] [%num n=5] [%word w='<']] ~)"   "~[$T]"
-check "< false"    "(eval ~[[%num n=5] [%num n=2] [%word w='<']] ~)"   "~[$F]"
-check "> true"     "(eval ~[[%num n=5] [%num n=2] [%word w='>']] ~)"   "~[$T]"
-check "> false"    "(eval ~[[%num n=2] [%num n=5] [%word w='>']] ~)"   "~[$F]"
-check "0= zero"    "(eval ~[[%num n=0] [%word w='0=']] ~)"              "~[$T]"
-check "0= nonzero" "(eval ~[[%num n=1] [%word w='0=']] ~)"              "~[$F]"
+check "= true"     "d-stack:(eval ~[[%num n=3] [%num n=3] [%word w='=']] *north)"   "~[$T]"
+check "= false"    "d-stack:(eval ~[[%num n=3] [%num n=4] [%word w='=']] *north)"   "~[$F]"
+check "< true"     "d-stack:(eval ~[[%num n=2] [%num n=5] [%word w='<']] *north)"   "~[$T]"
+check "< false"    "d-stack:(eval ~[[%num n=5] [%num n=2] [%word w='<']] *north)"   "~[$F]"
+check "> true"     "d-stack:(eval ~[[%num n=5] [%num n=2] [%word w='>']] *north)"   "~[$T]"
+check "> false"    "d-stack:(eval ~[[%num n=2] [%num n=5] [%word w='>']] *north)"   "~[$F]"
+check "0= zero"    "d-stack:(eval ~[[%num n=0] [%word w='0=']] *north)"              "~[$T]"
+check "0= nonzero" "d-stack:(eval ~[[%num n=1] [%word w='0=']] *north)"              "~[$F]"
 
 echo ""
 echo "=== Tier 3: Bitwise ==="
 
-check "and"        "(eval ~[[%num n=12] [%num n=10] [%word w='and']] ~)"    "~[8]"
-check "or"         "(eval ~[[%num n=12] [%num n=10] [%word w='or']] ~)"     "~[14]"
-check "xor"        "(eval ~[[%num n=15] [%num n=10] [%word w='xor']] ~)"    "~[5]"
-check "invert-0"   "(eval ~[[%num n=0] [%word w='invert']] ~)"              "~[$T]"
-check "invert-T"   "(eval ~[[%num n=$T] [%word w='invert']] ~)"             "~[$F]"
+check "and"        "d-stack:(eval ~[[%num n=12] [%num n=10] [%word w='and']] *north)"    "~[8]"
+check "or"         "d-stack:(eval ~[[%num n=12] [%num n=10] [%word w='or']] *north)"     "~[14]"
+check "xor"        "d-stack:(eval ~[[%num n=15] [%num n=10] [%word w='xor']] *north)"    "~[5]"
+check "invert-0"   "d-stack:(eval ~[[%num n=0] [%word w='invert']] *north)"              "~[$T]"
+check "invert-T"   "d-stack:(eval ~[[%num n=$T] [%word w='invert']] *north)"             "~[$F]"
 
 echo ""
 echo "=== Branching (IF/ELSE/THEN) ==="
 
 # 5 3 > IF 99 THEN  →  true path: zbranch skips 0, pushes 99
-check "if-true"    "(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=1] [%num n=99]] ~)" "~[99]"
+check "if-true"    "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=1] [%num n=99]] *north)" "~[99]"
 # 3 5 > IF 99 THEN  →  false path: zbranch skips 1 token
-check "if-false"   "(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=1] [%num n=99]] ~)" "~"
+check "if-false"   "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=1] [%num n=99]] *north)" "~"
 # 5 3 > IF 1 ELSE 2 THEN  →  true path: push 1, branch over else
-check "if-else-true"  "(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] ~)" "~[1]"
+check "if-else-true"  "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] *north)" "~[1]"
 # 3 5 > IF 1 ELSE 2 THEN  →  false path: zbranch skips to else, push 2
-check "if-else-false" "(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] ~)" "~[2]"
+check "if-else-false" "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] *north)" "~[2]"
+
+echo ""
+echo "=== Tier 4: Return Stack ==="
+
+# >R moves TOS from data stack to return stack
+check ">r d-stack"  "d-stack:(eval ~[[%num n=42] [%word w='>r']] *north)"   "~"
+check ">r r-stack"  "r-stack:(eval ~[[%num n=42] [%word w='>r']] *north)"   "~[42]"
+# R> moves TOS from return stack to data stack
+check "r> d-stack"  "d-stack:(eval ~[[%num n=42] [%word w='>r'] [%word w='r>']] *north)"  "~[42]"
+check "r> r-stack"  "r-stack:(eval ~[[%num n=42] [%word w='>r'] [%word w='r>']] *north)"  "~"
+# R@ copies return stack TOS to data stack without removing it
+check "r@ d-stack"  "d-stack:(eval ~[[%num n=7] [%word w='>r'] [%word w='r@']] *north)"   "~[7]"
+check "r@ r-stack"  "r-stack:(eval ~[[%num n=7] [%word w='>r'] [%word w='r@']] *north)"   "~[7]"
+# stacking: push two values, retrieve in LIFO order
+# LIFO: 1 pushed first, 2 on top; >R >R reverses onto r-stack; R> R> restores original order
+check ">r/>r/r>/r>" "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='>r'] [%word w='>r'] [%word w='r>'] [%word w='r>']] *north)" "~[1 2]"
 
 echo ""
 echo "=== Results ==="
