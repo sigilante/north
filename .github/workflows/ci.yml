@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache urbit binary
+        id: cache-urbit
+        uses: actions/cache@v4
+        with:
+          path: ~/.urbit-bin
+          key: urbit-linux-x86_64-v1
+
+      - name: Install urbit
+        if: steps.cache-urbit.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.urbit-bin
+          # Fetch latest vere release tag then download the linux-x86_64 binary directly
+          VERE_TAG=$(curl -sL https://api.github.com/repos/urbit/vere/releases/latest \
+            | jq -r '.tag_name')
+          echo "vere tag: $VERE_TAG"
+          curl -L \
+            "https://github.com/urbit/vere/releases/download/${VERE_TAG}/linux-x86_64.tgz" \
+            -o /tmp/urbit.tgz
+          file /tmp/urbit.tgz
+          tar xzf /tmp/urbit.tgz -C ~/.urbit-bin
+          mv ~/.urbit-bin/vere-*-linux-x86_64 ~/.urbit-bin/urbit
+          chmod +x ~/.urbit-bin/urbit
+
+      - name: Add urbit to PATH
+        run: echo "$HOME/.urbit-bin" >> "$GITHUB_PATH"
+
+      - name: Symlink to ~/bin/urbit (expected by test script)
+        run: |
+          mkdir -p ~/bin
+          ln -sf ~/.urbit-bin/urbit ~/bin/urbit
+
+      - name: Run North tests
+        run: bash tests/test-north.sh
