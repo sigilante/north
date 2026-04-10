@@ -398,6 +398,36 @@ check "recurse pow2"        "d-stack:(eval (parse \": pow2  dup 0 = if drop 1 el
 check "recurse fib 7"       "d-stack:(eval (parse \": fib  dup 2 < if else dup 1- recurse swap 2 - recurse + then ;  7 fib\") *north)" "~[13]"
 
 echo ""
+echo "=== Tier 13: . (dot) output ==="
+
+# . prints TOS as unsigned decimal followed by a space, consuming TOS
+check "dot 0"          "output.buffers:(eval (parse \"0 .\") *north)"             "\"0 \""
+check "dot 42"         "output.buffers:(eval (parse \"42 .\") *north)"            "\"42 \""
+check "dot 999"        "output.buffers:(eval (parse \"999 .\") *north)"           "\"999 \""
+check "dot 12345"      "output.buffers:(eval (parse \"12345 .\") *north)"         "\"12345 \""
+# . consumes TOS: stack is empty after
+check "dot stack"      "d-stack:(eval (parse \"7 .\") *north)"                   "~"
+# Multiple dots: each number gets space-separated
+check "dot multiple"   "output.buffers:(eval (parse \"1 . 2 . 3 .\") *north)"    "\"1 2 3 \""
+# . in a word definition
+check "dot in word"    "output.buffers:(eval (parse \": show  . ;  42 show\") *north)" "\"42 \""
+
+echo ""
+echo "=== Tier 13: TYPE output ==="
+
+# TYPE ( addr cnt -- ) prints cnt chars from memory starting at addr
+# Store 'H' 'e' 'l' 'l' 'o' (72 101 108 108 111) at addresses 0-4, then TYPE
+check "type hello"     "output.buffers:(eval (parse \"5 ALLOT 72 0 ! 101 1 ! 108 2 ! 108 3 ! 111 4 ! 0 5 TYPE\") *north)" "\"Hello\""
+# TYPE "ABC" at addresses 0-2
+check "type abc"       "output.buffers:(eval (parse \"3 ALLOT 65 0 ! 66 1 ! 67 2 ! 0 3 TYPE\") *north)" "\"ABC\""
+# TYPE with cnt=0: nothing printed
+check "type empty"     "output.buffers:(eval (parse \"0 0 TYPE\") *north)"        "\"\""
+# TYPE consumes addr and cnt: stack empty after
+check "type stack"     "d-stack:(eval (parse \"3 ALLOT 65 0 ! 66 1 ! 67 2 ! 0 3 TYPE\") *north)" "~"
+# TYPE starting from offset address
+check "type offset"    "output.buffers:(eval (parse \"5 ALLOT 65 0 ! 66 1 ! 67 2 ! 68 3 ! 69 4 ! 2 3 TYPE\") *north)" "\"CDE\""
+
+echo ""
 echo "=== Tier 9: Loop Tokenization ==="
 
 # BEGIN/AGAIN: unconditional backward branch

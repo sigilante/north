@@ -214,6 +214,28 @@
   ?~  d  ~
   ?:  =((crip (cuss (trip p.i.d))) wu)  `q.i.d
   $(d t.d)
+:: NUM-TO-TAPE - convert unsigned atom to decimal tape (no dot separators)
+::  Recurse to most-significant digit first, then cons the digit for this level.
+::  n=0 handled at entry so the trap never receives 0 except in the "0" case.
+++  num-to-tape
+  |=  n=@
+  ^-  tape
+  ?:  =(0 n)  "0"
+  |-  ^-  tape
+  ?:  =(0 n)  ~
+  =/  qr  (divmod:ua n 10)
+  (weld $(n p.qr) ~[^-(@t (add:ua q.qr 48))])
+:: READ-CHARS - read cnt chars from stak at addr, produce tape
+++  read-chars
+  ::  Extract cnt chars from stak starting at addr, produce tape
+  ::  Uses turn+scag+slag to avoid fuse-loop from ?@ on (list *) elements
+  |=  [addr=@ cnt=@ m=stak]
+  ^-  tape
+  =/  slice  (scag cnt (slag addr m))
+  %+  turn  slice
+  |=  c=*
+  ?>  ?=(@ c)
+  ^-(@t c)
 :: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
   |=  [w=@t st=north]
@@ -459,6 +481,18 @@
   ?:  =(w 'SPACES')
     =^  n=@  ds  (pop ds)
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (tape-reap n ' '))))
+  ::  Tier 13: Number and string output
+  ?:  =(w '.')
+    ::  ( n -- )  print TOS as unsigned decimal followed by a space
+    =^  n=@  ds  (pop ds)
+    =/  str  (weld (num-to-tape n) ~[' '])
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st str)))
+  ?:  =(w 'TYPE')
+    ::  ( addr cnt -- )  print cnt chars from mem starting at addr
+    =^  cnt=@   ds  (pop ds)
+    =^  addr=@  ds  (pop ds)
+    =/  chars  (read-chars addr cnt mem.st)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st chars)))
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
   ?:  =(w 'I')
