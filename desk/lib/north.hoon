@@ -46,6 +46,8 @@
       [%do ~]               ::  DO: pop limit and start, init counted loop
       [%loop offset=@s]     ::  LOOP: step by 1; loop or exit
       [%ploop offset=@s]    ::  +LOOP: step by n (popped); loop or exit
+      [%variable name=cord] ::  VARIABLE: allocate cell, bind name to its address
+      [%constant name=cord] ::  CONSTANT: pop TOS, bind name to that value
   ==
 +$  prog  (list token)
 --
@@ -496,6 +498,10 @@
         =/  body  comp-buffer.buffers.st
         =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def ''), buffers buffers.st(comp-buffer ~))
         $(ip +(ip), st st2)
+      ::  RECURSE: emit a call to the word currently being defined
+      ?:  =(w.tok 'RECURSE')
+        =/  self  current-def.settings.st
+        $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[[%word w=self]])))
       ::  Compile this word token into body
       $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[tok])))
     ::  Compile any non-word token (num, tick, zbranch, branch) into body
@@ -551,6 +557,16 @@
       ?:  (gte:ua new-idx ^-(@ lim))
         $(ip +(ip), st st(d-stack ds, r-stack (drop rs1)))
       $(ip (ip-advance ip offset.tok), st st(d-stack ds, r-stack (push rs1 new-idx)))
+    %variable
+      ::  Allocate one cell at HERE; bind name to its address
+      =/  addr  here.settings.st
+      =/  st2   (allot 1 st)
+      $(ip +(ip), st st2(dict (dict-add name.tok ~[[%num n=addr]] dict.st2)))
+    %constant
+      ::  Pop TOS; bind name to that value
+      =/  ds  d-stack.st
+      =^  val=@  ds  (pop ds)
+      $(ip +(ip), st st(d-stack ds, dict (dict-add name.tok ~[[%num n=val]] dict.st)))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -917,6 +933,14 @@
   ?:  =(wu ':')
     ?~  rest  out
     $(words t.rest, out (weld out ~[[%colon name=(crip (cuss i.rest))]]))
+  ::  VARIABLE: next token is name
+  ?:  =(wu 'VARIABLE')
+    ?~  rest  out
+    $(words t.rest, out (weld out ~[[%variable name=(crip (cuss i.rest))]]))
+  ::  CONSTANT: next token is name
+  ?:  =(wu 'CONSTANT')
+    ?~  rest  out
+    $(words t.rest, out (weld out ~[[%constant name=(crip (cuss i.rest))]]))
   ::  Tick: push xt without executing
   ?:  =(wu '\'')
     ?~  rest  out

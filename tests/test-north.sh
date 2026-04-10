@@ -353,6 +353,51 @@ check "parse lshift"    "d-stack:(eval (parse \"1 4 lshift\") *north)"          
 check "parse true/false" "d-stack:(eval (parse \"true false\") *north)"                         "~[$T $F]"
 
 echo ""
+echo "=== Tier 12: VARIABLE ==="
+
+# Tokenization
+check "parse variable tok"  "(parse \"variable x\")"              "~[[%variable name='X']]"
+check "parse variable case" "(parse \"Variable foo\")"            "~[[%variable name='FOO']]"
+
+# VARIABLE allocates at HERE=0 on fresh state
+check "variable addr"       "d-stack:(eval (parse \"variable x  x\") *north)"            "~[0]"
+# Second VARIABLE gets the next address
+check "variable 2nd addr"   "d-stack:(eval (parse \"variable x  variable y  y\") *north)" "~[1]"
+# Store and fetch via variable
+check "variable store/fetch" "d-stack:(eval (parse \"variable x  42 x !  x @\") *north)" "~[42]"
+# Variable mem reflects stored value
+check "variable mem"         "mem:(eval (parse \"variable x  99 x !\") *north)"           "~[99]"
+# Two variables independent
+check "variable two vars"    "d-stack:(eval (parse \"variable x  variable y  10 x !  20 y !  x @ y @\") *north)" "~[10 20]"
+
+echo ""
+echo "=== Tier 12: CONSTANT ==="
+
+# Tokenization
+check "parse constant tok"  "(parse \"42 constant answer\")"      "~[[%num n=42] [%constant name='ANSWER']]"
+
+# CONSTANT pushes the bound value
+check "constant fetch"      "d-stack:(eval (parse \"42 constant answer  answer\") *north)"         "~[42]"
+# CONSTANT leaves d-stack clean after binding
+check "constant d-stack"    "d-stack:(eval (parse \"42 constant answer\") *north)"                 "~"
+# Use constant in arithmetic
+check "constant arith"      "d-stack:(eval (parse \"10 constant n  n n *\") *north)"               "~[100]"
+# Multiple constants
+check "constant two"        "d-stack:(eval (parse \"3 constant x  7 constant y  x y +\") *north)"  "~[10]"
+
+echo ""
+echo "=== Tier 12: RECURSE ==="
+
+# Factorial: 5! = 120
+check "recurse fact 5"      "d-stack:(eval (parse \": fact  dup 1 = if drop 1 else dup 1- recurse * then ;  5 fact\") *north)"   "~[120]"
+# Base case: 1! = 1
+check "recurse fact 1"      "d-stack:(eval (parse \": fact  dup 1 = if drop 1 else dup 1- recurse * then ;  1 fact\") *north)"   "~[1]"
+# Power of 2: 2^8 = 256
+check "recurse pow2"        "d-stack:(eval (parse \": pow2  dup 0 = if drop 1 else 1- recurse 2 * then ;  8 pow2\") *north)"    "~[256]"
+# Fibonacci: fib(7) = 13
+check "recurse fib 7"       "d-stack:(eval (parse \": fib  dup 2 < if else dup 1- recurse swap 2 - recurse + then ;  7 fib\") *north)" "~[13]"
+
+echo ""
 echo "=== Tier 9: Loop Tokenization ==="
 
 # BEGIN/AGAIN: unconditional backward branch
