@@ -8,6 +8,7 @@
       dict=lexi
       settings=settings-map
       buffers=buffer-map
+      mem=stak
       r-stack=stak
       d-stack=stak
   ==
@@ -53,13 +54,52 @@
 ::
 |%
 :: Tier 0: Stack Manipulation
-:: WELD - concatenate two stacks
+:: WELD - concatenate two lists
 ++  weld
   |=  [a=stak b=stak]
   ^-  stak
   |-
   ?~  a  b
   [i.a $(a t.a)]
+:: LENT - list length (stdlib replacement)
+++  lent
+  |=  a=(list *)
+  ^-  @
+  =/  n  0
+  |-
+  ?~  a  n
+  $(a t.a, n +(n))
+:: SLAG - drop first n elements (stdlib replacement, wet for list polymorphism)
+++  slag
+  |*  [n=@ a=(list)]
+  ^+  a
+  |-
+  ?:  =(0 n)  a
+  ?~  a  ~
+  $(n (dec:ua n), a t.a)
+:: SNAG - get element at index (for memory fetch)
+++  snag
+  |=  [n=@ a=stak]
+  ^-  *
+  |-
+  ?>  ?=(^ a)
+  ?:  =(0 n)  i.a
+  $(n (dec:ua n), a t.a)
+:: SNAP - replace element at index (for memory store)
+++  snap
+  |=  [a=stak n=@ v=*]
+  ^-  stak
+  |-
+  ?~  a  ~
+  ?:  =(0 n)  [v t.a]
+  [i.a $(a t.a, n (dec:ua n))]
+:: REAP - make list of n copies of v (for ALLOT)
+++  reap
+  |=  [n=@ v=*]
+  ^-  stak
+  |-
+  ?:  =(0 n)  ~
+  [v $(n (dec:ua n))]
 :: REAR - get TOS (last element)
 ++  rear
   |=  a=stak
@@ -89,7 +129,7 @@
 ++  swap
   |=  s=stak
   ^-  stak
-  ?:  (lth (lent s) 2)  s
+  ?:  (lt:ua (lent s) 2)  s
   =/  ult  (rear s)
   =/  s1   (drop s)
   =/  pen  (rear s1)
@@ -99,7 +139,7 @@
 ++  over
   |=  s=stak
   ^-  stak
-  ?:  (lth (lent s) 2)  s
+  ?:  (lt:ua (lent s) 2)  s
   =/  ult  (rear s)
   =/  s1   (drop s)
   =/  pen  (rear s1)
@@ -109,7 +149,7 @@
 ++  rot
   |=  s=stak
   ^-  stak
-  ?:  (lth (lent s) 3)  s
+  ?:  (lt:ua (lent s) 3)  s
   =/  c    (rear s)
   =/  s1   (drop s)
   =/  b    (rear s1)
@@ -214,6 +254,20 @@
     st(d-stack (push ds a), r-stack rs)
   ?:  =(w 'r@')
     st(d-stack (push ds (rear rs)))
+  ::  Tier 5: Memory ( addr -- x ) and ( x addr -- )
+  ?:  =(w '@')
+    =^  addr=@  ds  (pop ds)
+    st(d-stack (push ds (fetch addr mem.st)))
+  ?:  =(w '!')
+    =^  addr=@  ds  (pop ds)
+    =/  val  (rear ds)
+    st(d-stack (drop ds), mem (store mem.st addr val))
+  ?:  =(w '+!')
+    =^  addr=@  ds  (pop ds)
+    =^  n=@     ds  (pop ds)
+    =/  raw  (fetch addr mem.st)
+    ?>  ?=(@ raw)
+    st(d-stack ds, mem (store mem.st addr (add:ua raw n)))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state
 ++  eval
@@ -441,8 +495,16 @@
   ^-  north
   st(r-stack (push r-stack.st a))
 :: Tier 5: Memory/Tree Navigation
-++  fetch  !!
-++  store  !!
+:: FETCH ( addr -- x )  Read noun from mem at addr
+++  fetch
+  |=  [n=@ mem=stak]
+  ^-  *
+  (snag n mem)
+:: STORE ( x addr mem -- mem' )  Write noun into mem at addr
+++  store
+  |=  [mem=stak n=@ v=*]
+  ^-  stak
+  (snap mem n v)
 :: Tier 6: Dictionary Basics
 ++  here      !!
 ++  comma     !!
