@@ -282,6 +282,113 @@ check "parse+eval ifelse" "d-stack:(eval (parse \"5 3 > IF 1 ELSE 2 THEN\") *nor
 check "parse+eval case"   "d-stack:(eval (parse \"DUP 5\") *north)"          "~[5]"
 
 echo ""
+echo "=== Tier 9: Loop Tokenization ==="
+
+# BEGIN/AGAIN: unconditional backward branch
+# ix-begin=0, ix-again=1; off=dif:si(sun:si 0)(sun:si 2)=0-2=-2 → atom 3
+check "parse begin/again tok" "(parse \"BEGIN 1 AGAIN\")" \
+  "~[[%num n=1] [%branch offset=-2]]"
+
+# BEGIN/UNTIL: conditional backward branch (exit when flag≠0)
+# Same offsets as AGAIN; zbranch instead of branch
+check "parse begin/until tok" "(parse \"BEGIN 1 UNTIL\")" \
+  "~[[%num n=1] [%zbranch offset=-2]]"
+
+# BEGIN/WHILE/REPEAT: exit zbranch + backward branch
+# ix-begin=0, ix-while=1, ix-rep=3
+# off-back = dif:si(sun:si 0)(sun:si 4) = 0-4 = -4 → atom 7
+# off-exit = sun:si(sub(lent out2=4, inc ix-while=2)) = sun:si(2) = 4 → --2
+check "parse begin/while/repeat tok" "(parse \"BEGIN 1 WHILE 2 REPEAT\")" \
+  "~[[%num n=1] [%zbranch offset=--2] [%num n=2] [%branch offset=-4]]"
+
+# Countdown: 3 BEGIN 1- DUP 0= UNTIL
+# ix-begin=1, ix-until=4; off=dif:si(sun:si 1)(sun:si 5)=+1-+5=-4 → atom 7
+check "parse countdown/until tok" "(parse \"3 BEGIN 1- DUP 0= UNTIL\")" \
+  "~[[%num n=3] [%word w='1-'] [%word w='DUP'] [%word w='0='] [%zbranch offset=-4]]"
+
+# Countdown: 3 BEGIN DUP WHILE 1- REPEAT
+# ix-begin=1, ix-while=2, ix-rep=4
+# off-back = dif:si(sun:si 1)(sun:si 5) = -4 → atom 7
+# off-exit = sun:si(sub(5,3)) = sun:si(2) = 4 → --2
+check "parse countdown/while tok" "(parse \"3 BEGIN DUP WHILE 1- REPEAT\")" \
+  "~[ [%num n=3] [%word w='DUP'] [%zbranch offset=--2] [%word w='1-'] [%branch offset=-4] ]"
+
+echo ""
+echo "=== Tier 9: Loop Round-trips ==="
+
+# BEGIN/UNTIL: UNTIL pops the flag; 5 BEGIN DUP UNTIL → DUP gives flag=5 (nonzero),
+# UNTIL exits, leaving ~[5] (the original 5 under the popped DUP copy)
+check "parse+eval begin/until exit" \
+  "d-stack:(eval (parse \"5 BEGIN DUP UNTIL\") *north)" \
+  "~[5]"
+
+# Countdown via UNTIL: 3 → 2 → 1 → 0; DUP 0= consumed by UNTIL each iter
+# Final stack: ~[0]
+check "parse+eval countdown/until" \
+  "d-stack:(eval (parse \"3 BEGIN 1- DUP 0= UNTIL\") *north)" \
+  "~[0]"
+
+# Countdown via WHILE/REPEAT: DUP provides flag, WHILE pops it, 1- decrements
+# Final stack: ~[0]
+check "parse+eval countdown/while" \
+  "d-stack:(eval (parse \"3 BEGIN DUP WHILE 1- REPEAT\") *north)" \
+  "~[0]"
+
+echo ""
+echo "=== Tier 9: Additional Coverage ==="
+
+# Multiple definitions in one source string
+check "parse+eval multi-def" \
+  "d-stack:(eval (parse \": sq dup * ; : double 2 * ; 3 sq double\") *north)" \
+  "~[18]"
+
+# Nested word definitions (word calling word)
+check "parse+eval nested-def" \
+  "d-stack:(eval (parse \": sq dup * ; : quad sq sq ; 3 quad\") *north)" \
+  "~[81]"
+
+# Case-folding: mixed-case control words
+check "parse+eval case-fold-ctrl" \
+  "d-stack:(eval (parse \"5 3 > iF 99 tHen\") *north)" \
+  "~[99]"
+
+# Return stack via text
+check "parse+eval >r r-stack" \
+  "r-stack:(eval (parse \"42 >r\") *north)" \
+  "~[42]"
+check "parse+eval >r r>" \
+  "d-stack:(eval (parse \"42 >r r>\") *north)" \
+  "~[42]"
+check "parse+eval r@" \
+  "d-stack:(eval (parse \"7 >r r@\") *north)" \
+  "~[7]"
+
+# Memory ops via text
+check "parse+eval allot+store+fetch" \
+  "d-stack:(eval (parse \"3 allot 99 1 ! 1 @\") *north)" \
+  "~[99]"
+
+# Tick and EXECUTE via text
+check "parse+eval tick execute" \
+  "d-stack:(eval (parse \"5 ' dup execute\") *north)" \
+  "~[5 5]"
+
+# Hex and binary through full eval
+check "parse+eval hex+bin eval" \
+  "d-stack:(eval (parse \"0xff 0b1010 +\") *north)" \
+  "~[265]"
+
+# Paren comment through full eval
+check "parse+eval paren-comment eval" \
+  "d-stack:(eval (parse \"( setup ) 3 4 +\") *north)" \
+  "~[7]"
+
+# Line comment through eval (backslash: Hoon tape uses \\ for literal \)
+check "parse+eval line-comment eval" \
+  "d-stack:(eval (parse \"5 \\\\ ignore this\") *north)" \
+  "~[5]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
