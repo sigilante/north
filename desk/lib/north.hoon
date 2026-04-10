@@ -22,6 +22,7 @@
       current-def=cord  ::  name being compiled; '' when not compiling
       create-name=cord  ::  name for next CREATE; '' when none pending
       last-create=cord  ::  name of most recently CREATE'd word (for DOES> patching)
+      throw-val=@       ::  0=no exception; nonzero=pending THROW value
   ==
 +$  buffer-map
   $:  tib=tape
@@ -530,6 +531,20 @@
     ?>  !=(cname '')
     =/  addr  here.settings.st
     st(dict (dict-add cname ~[[%num n=addr]] dict.st), settings settings.st(create-name '', last-create cname))
+  ::  Tier 16: Exception handling
+  ?:  =(w 'THROW')
+    =^  k=@  ds  (pop ds)
+    ?:  =(0 k)  st(d-stack ds)
+    st(d-stack ds, settings settings.st(throw-val k))
+  ?:  =(w 'CATCH')
+    =^  xt=cord  ds  (pop ds)
+    =/  saved-ds  ds
+    =/  saved-rs  rs
+    =/  st1  (run-word xt st(d-stack ds))
+    =/  k  throw-val.settings.st1
+    ?:  =(0 k)
+      st1(d-stack (push d-stack.st1 0))
+    st1(d-stack (push saved-ds k), r-stack saved-rs, settings settings.st1(throw-val 0))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
@@ -587,11 +602,21 @@
         $(ip (add:ua ip 2), st st(dict (dict-add w.nxt ~[[%num n=addr]] dict.st), settings settings.st(last-create w.nxt)))
       ::  User-defined defining word (has %does-gt in body): consume next token as name-to-create
       ?:  (is-defining-word w.tok dict.st)
-        ?:  (gte:ua (inc:ua ip) n)  $(ip +(ip), st (run-word w.tok st))
+        ?:  (gte:ua (inc:ua ip) n)
+          =/  st1  (run-word w.tok st)
+          ?:  !=(0 throw-val.settings.st1)  st1
+          $(ip +(ip), st st1)
         =/  nxt  (snag-prog (inc:ua ip) p)
-        ?.  ?=([%word *] nxt)  $(ip +(ip), st (run-word w.tok st))
-        $(ip (add:ua ip 2), st (run-word w.tok st(settings settings.st(create-name w.nxt))))
-      $(ip +(ip), st (run-word w.tok st))
+        ?.  ?=([%word *] nxt)
+          =/  st1  (run-word w.tok st)
+          ?:  !=(0 throw-val.settings.st1)  st1
+          $(ip +(ip), st st1)
+        =/  st1  (run-word w.tok st(settings settings.st(create-name w.nxt)))
+        ?:  !=(0 throw-val.settings.st1)  st1
+        $(ip (add:ua ip 2), st st1)
+      =/  st1  (run-word w.tok st)
+      ?:  !=(0 throw-val.settings.st1)  st1
+      $(ip +(ip), st st1)
     %tick
       $(ip +(ip), st st(d-stack (push d-stack.st w.tok)))
     %colon
