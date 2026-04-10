@@ -398,6 +398,33 @@ check "recurse pow2"        "d-stack:(eval (parse \": pow2  dup 0 = if drop 1 el
 check "recurse fib 7"       "d-stack:(eval (parse \": fib  dup 2 < if else dup 1- recurse swap 2 - recurse + then ;  7 fib\") *north)" "~[13]"
 
 echo ""
+echo "=== Tier 14: [ ] LITERAL Tokenization ==="
+
+# [ ] LITERAL parse as plain %word tokens — no compile-stack manipulation at parse time
+check "parse bracket-literal tok" \
+  "(parse \"[ 2 3 + ] LITERAL\")" \
+  "~[ [%word w='['] [%num n=2] [%num n=3] [%word w='+'] [%word w=']'] [%word w='LITERAL'] ]"
+
+echo ""
+echo "=== Tier 14: [ ] LITERAL Round-trips ==="
+
+# Basic: [ 2 3 + ] LITERAL dup *  compiles literal 5 into body; result = 5*5=25
+check "bracket literal basic"   "d-stack:(eval (parse \": f  [ 2 3 + ] LITERAL  dup * ;  f\") *north)"   "~[25]"
+# LITERAL with zero
+check "bracket literal zero"    "d-stack:(eval (parse \": z  [ 0 ] LITERAL ;  z\") *north)"               "~[0]"
+# Compile-time mul: 10*10=100 embedded
+check "bracket literal 100"     "d-stack:(eval (parse \": hundred  [ 10 10 * ] LITERAL ;  hundred\") *north)" "~[100]"
+# Reuse: calling f twice and adding
+check "bracket literal reuse"   "d-stack:(eval (parse \": f  [ 3 dup * ] LITERAL ;  f f +\") *north)"    "~[18]"
+# [ HERE ] LITERAL captures compile-time allocation pointer
+# After 'variable x', HERE=1; [ here ] LITERAL embeds 1 in show-here
+check "bracket literal here"    "d-stack:(eval (parse \"variable x  : show-here  [ here ] LITERAL ;  show-here\") *north)" "~[1]"
+# LITERAL in interpret mode is a no-op (value stays on stack)
+check "literal interp noop"     "d-stack:(eval (parse \"42 literal\") *north)"                            "~[42]"
+# [ ] at top level: [ is no-op, ] switches to compile mode (5 goes to comp-buffer, not stack)
+check "bracket top level"       "d-stack:(eval (parse \"3 [ 4 + ] 5\") *north)"                          "~[7]"
+
+echo ""
 echo "=== Tier 13: . (dot) output ==="
 
 # . prints TOS as unsigned decimal followed by a space, consuming TOS
