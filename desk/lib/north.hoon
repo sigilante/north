@@ -36,12 +36,12 @@
 ::  Token-list evaluator
 ::  words use cord names so Forth symbols (+, *, etc.) are valid
 +$  token
-  $%  [%num n=@]           ::  unsigned literal
-      [%word w=@t]         ::  word name (execute immediately)
-      [%tick w=@t]         ::  ' WORD: push xt (cord) without executing
-      [%colon name=cord]   ::  : NAME — begin word definition
-      [%zbranch offset=@]  ::  0BRANCH: pop flag; if 0 skip forward by offset
-      [%branch offset=@]   ::  BRANCH: unconditional skip forward by offset
+  $%  [%num n=@]            ::  unsigned literal
+      [%word w=@t]          ::  word name (execute immediately)
+      [%tick w=@t]          ::  ' WORD: push xt (cord) without executing
+      [%colon name=cord]    ::  : NAME — begin word definition
+      [%zbranch offset=@s]  ::  0BRANCH: pop flag; if 0 jump by offset (signed)
+      [%branch offset=@s]   ::  BRANCH: unconditional jump by offset (signed)
   ==
 +$  prog  (list token)
 --
@@ -71,14 +71,36 @@
   ?:  =(0 n)  a
   ?~  a  ~
   $(n (dec:ua n), a t.a)
-:: SNAG - get element at index (for memory fetch)
+:: SNAG - get element at index (wet: works on stak and prog)
 ++  snag
-  |=  [n=@ a=stak]
-  ^-  *
-  |-
-  ?>  ?=(^ a)
+  |*  [n=@ a=(list)]
+  ?.  ?=(^ a)  !!
   ?:  =(0 n)  i.a
   $(n (dec:ua n), a t.a)
+:: SNAG-PROG - typed snag returning token (for index-based eval)
+++  snag-prog
+  |=  [n=@ p=prog]
+  ^-  token
+  |-
+  ?>  ?=(^ p)
+  ?:  =(0 n)  i.p
+  $(n (dec:ua n), p t.p)
+:: PATCH-PROG - replace token at index (for backpatching branch offsets)
+++  patch-prog
+  |=  [p=prog n=@ tok=token]
+  ^-  prog
+  |-
+  ?~  p  ~
+  ?:  =(0 n)  [tok t.p]
+  [i.p $(p t.p, n (dec:ua n))]
+:: IP-ADVANCE - compute next ip from current ip and signed offset
+::  ZigZag: non-negative @s atom n represents unsigned n/2; so convert back with div 2
+++  ip-advance
+  |=  [ip=@ offset=@s]
+  ^-  @
+  =/  new=@s  (sum:si (sun:si +(ip)) offset)
+  ?>  (syn:si new)
+  (div:ua new 2)
 :: SNAP - replace element at index (for memory store)
 ++  snap
   |=  [a=stak n=@ v=*]
@@ -161,30 +183,32 @@
   =/  v  (rear s)
   ?>  ?=(@ v)
   [v (drop s)]
-:: FIND-DICT - look up a word in the user dictionary; returns (unit prog)
+:: FIND-DICT - look up a word in the user dictionary; case-insensitive
 ++  find-dict
   |=  [w=cord d=lexi]
   ^-  (unit prog)
+  =/  wu  (crip (cuss (trip w)))
   |-
   ?~  d  ~
-  ?:  =(w p.i.d)  `q.i.d
+  ?:  =((crip (cuss (trip p.i.d))) wu)  `q.i.d
   $(d t.d)
 :: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
   |=  [w=@t st=north]
   ^-  north
+  =/  w  (crip (cuss (trip w)))   ::  fold to uppercase at entry
   =/  ds  d-stack.st
   =/  rs  r-stack.st
   ::  User dictionary takes precedence over primitives
   =/  body  (find-dict w dict.st)
   ?^  body  (eval u.body st)
   ::  Stack ops ( d-stack only )
-  ?:  =(w 'dup')    st(d-stack (dup ds))
-  ?:  =(w 'drop')   st(d-stack (drop ds))
-  ?:  =(w 'swap')   st(d-stack (swap ds))
-  ?:  =(w 'over')   st(d-stack (over ds))
-  ?:  =(w 'rot')    st(d-stack (rot ds))
-  ?:  =(w 'depth')  st(d-stack (push ds (lent ds)))
+  ?:  =(w 'DUP')    st(d-stack (dup ds))
+  ?:  =(w 'DROP')   st(d-stack (drop ds))
+  ?:  =(w 'SWAP')   st(d-stack (swap ds))
+  ?:  =(w 'OVER')   st(d-stack (over ds))
+  ?:  =(w 'ROT')    st(d-stack (rot ds))
+  ?:  =(w 'DEPTH')  st(d-stack (push ds (lent ds)))
   ::  Binary arithmetic ( a b -- c ), b=TOS
   ?:  =(w '+')
     =^  b=@  ds  (pop ds)
@@ -202,11 +226,11 @@
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (div:ua a b)))
-  ?:  =(w 'mod')
+  ?:  =(w 'MOD')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds q:(divmod:ua a b)))
-  ?:  =(w '/mod')
+  ?:  =(w '/MOD')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     =/  r  (divmod:ua a b)
@@ -235,29 +259,29 @@
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds ?:((zeq:ua a) forth-true 0)))
   ::  Bitwise ( a b -- c ), b=TOS
-  ?:  =(w 'and')
+  ?:  =(w 'AND')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (dis a b)))
-  ?:  =(w 'or')
+  ?:  =(w 'OR')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (con a b)))
-  ?:  =(w 'xor')
+  ?:  =(w 'XOR')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (mix a b)))
-  ?:  =(w 'invert')
+  ?:  =(w 'INVERT')
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (mix a forth-true)))
   ::  Tier 4: Return stack
-  ?:  =(w '>r')
+  ?:  =(w '>R')
     =^  a=@  ds  (pop ds)
     st(d-stack ds, r-stack (push rs a))
-  ?:  =(w 'r>')
+  ?:  =(w 'R>')
     =^  a=@  rs  (pop rs)
     st(d-stack (push ds a), r-stack rs)
-  ?:  =(w 'r@')
+  ?:  =(w 'R@')
     st(d-stack (push ds (rear rs)))
   ::  Tier 5: Memory ( addr -- x ) and ( x addr -- )
   ?:  =(w '@')
@@ -274,27 +298,27 @@
     ?>  ?=(@ raw)
     st(d-stack ds, mem (store mem.st addr (add:ua raw n)))
   ::  Tier 6: Dictionary basics
-  ?:  =(w 'here')
+  ?:  =(w 'HERE')
     st(d-stack (push ds here.settings.st))
-  ?:  =(w 'allot')
+  ?:  =(w 'ALLOT')
     =^  n=@  ds  (pop ds)
     (allot n st(d-stack ds))
   ?:  =(w ',')
     =/  v  (rear ds)
     (comma v st(d-stack (drop ds)))
   ::  CELLS: cell size is 1, so n CELLS = n (identity)
-  ?:  =(w 'cells')  st
+  ?:  =(w 'CELLS')  st
   ::  CELL+: add one cell size (1) to address
-  ?:  =(w 'cell+')
+  ?:  =(w 'CELL+')
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (inc:ua a)))
   ::  Tier 7: Interpreter core
   ::  EXECUTE ( xt -- ) run the word named by xt
-  ?:  =(w 'execute')
+  ?:  =(w 'EXECUTE')
     =^  xt=cord  ds  (pop ds)
     (run-word xt st(d-stack ds))
   ::  FIND ( cord -- cord 0 | xt forth-true ) search user dict
-  ?:  =(w 'find')
+  ?:  =(w 'FIND')
     =^  name=cord  ds  (pop ds)
     =/  body  (find-dict name dict.st)
     ?~  body
@@ -302,44 +326,54 @@
     st(d-stack (push (push ds name) forth-true))
   ::  Tier 8: Compilation
   ::  STATE ( -- flag ) 0=interpret, forth-true=compile (standard Forth convention)
-  ?:  =(w 'state')
+  ?:  =(w 'STATE')
     st(d-stack (push ds ?:(state.settings.st 0 forth-true)))
   ~|([%unknown-word w] !!)
-:: EVAL - run a token program against the interpreter state
+:: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
   |=  [p=prog st=north]
   ^-  north
-  ?~  p  st
+  =/  n  (lent p)
+  =|  ip=@
+  |-
+  ^-  north
+  ?:  (gte:ua ip n)  st
+  =/  tok  (snag-prog ip p)
   ::  Compile mode (state=%.n): accumulate tokens into comp-buffer
   ::  ';' (as %word) is the only token that ends compilation
   ?.  state.settings.st
-    ?:  ?=([%word *] i.p)
-      ?:  =(';' w.i.p)
+    ?:  ?=([%word *] tok)
+      ?:  =(';' w.tok)
         ::  End of definition: store body in dict, return to interpret
         =/  name  current-def.settings.st
         =/  body  comp-buffer.buffers.st
         =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def ''), buffers buffers.st(comp-buffer ~))
-        $(p t.p, st st2)
+        $(ip +(ip), st st2)
       ::  Compile this word token into body
-      $(p t.p, st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[i.p])))
+      $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[tok])))
     ::  Compile any non-word token (num, tick, zbranch, branch) into body
-    $(p t.p, st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[i.p])))
+    $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[tok])))
   ::  Interpret mode (state=%.y)
-  ?-  -.i.p
-    %num      $(p t.p, st st(d-stack (push d-stack.st n.i.p)))
-    %word     $(p t.p, st (run-word w.i.p st))
-    %tick     $(p t.p, st st(d-stack (push d-stack.st w.i.p)))
+  ?-  -.tok
+    %num
+      $(ip +(ip), st st(d-stack (push d-stack.st n.tok)))
+    %word
+      $(ip +(ip), st (run-word w.tok st))
+    %tick
+      $(ip +(ip), st st(d-stack (push d-stack.st w.tok)))
     %colon
       ::  Begin definition: switch to compile mode, clear comp-buffer
       ?>  state.settings.st
-      $(p t.p, st st(settings settings.st(state %.n, current-def name.i.p), buffers buffers.st(comp-buffer ~)))
+      =/  st2  st(settings settings.st(state %.n, current-def name.tok), buffers buffers.st(comp-buffer ~))
+      $(ip +(ip), st st2)
     %zbranch
       =/  ds  d-stack.st
       =^  flag=@  ds  (pop ds)
       ?:  =(0 flag)
-        $(p (slag offset.i.p t.p), st st(d-stack ds))
-      $(p t.p, st st(d-stack ds))
-    %branch    $(p (slag offset.i.p t.p))
+        $(ip (ip-advance ip offset.tok), st st(d-stack ds))
+      $(ip +(ip), st st(d-stack ds))
+    %branch
+      $(ip (ip-advance ip offset.tok))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -590,4 +624,183 @@
 :: IMMEDIATE and CREATE require dict entry flags; stubs pending.
 ++  immediate  !!
 ++  create     !!
+:: Tier 9: Text Parser
+:: STRIP-LINE-COMMENTS - remove '\' and everything after it to end of line
+++  strip-line-comments
+  |=  t=tape
+  ^-  tape
+  |-
+  ?~  t  ~
+  ?:  =('\\' i.t)
+    =/  rest  t.t
+    |-
+    ?~  rest  ~
+    ?:  =(10 i.rest)  ^$(t t.rest)
+    $(rest t.rest)
+  [i.t $(t t.t)]
+:: SPLIT-WS - split tape on whitespace into list of non-empty tapes
+++  split-ws
+  |=  t=tape
+  ^-  (list tape)
+  =|  words=(list tape)
+  =|  cur=tape
+  |-
+  ?~  t
+    =/  w2  ?~  cur  words  [(flop cur) words]
+    (flop w2)
+  =/  c  i.t
+  =/  ws  ?|(=(32 c) =(9 c) =(10 c) =(13 c))
+  ?:  ws
+    ?~  cur  $(t t.t)
+    $(t t.t, words [(flop cur) words], cur ~)
+  $(t t.t, cur [c cur])
+:: PARSE-DEC - parse unsigned decimal tape; ~ if invalid or empty
+::  Uses 'any' flag to distinguish "" (invalid) from "0" (valid)
+++  parse-dec
+  |=  t=tape
+  ^-  (unit @ud)
+  =|  n=@ud
+  =/  any  ^-(? %.n)
+  |-
+  ?~  t  ?.  any  ~  `n
+  =/  c  i.t
+  ?.  ?&((gte:ua c 48) (lte:ua c 57))  ~
+  $(t t.t, n (add:ua (mul:ua n 10) (sub:ua c 48)), any %.y)
+:: PARSE-HEX - parse 0x.../0X... hex tape; ~ if invalid
+++  parse-hex
+  |=  t=tape
+  ^-  (unit @ud)
+  ?.  ?&  ?=(^ t)  ?=(^ t.t)
+          =(48 i.t)
+          ?|(=(120 i.t.t) =(88 i.t.t))
+      ==  ~
+  =/  rest  t.t.t
+  =|  n=@ud
+  =/  any  ^-(? %.n)
+  |-
+  ?~  rest  ?.  any  ~  `n
+  =/  c  i.rest
+  =/  d  ?:  ?&((gte:ua c 48) (lte:ua c 57))   (sub:ua c 48)
+         ?:  ?&((gte:ua c 97) (lte:ua c 102))   (add:ua 10 (sub:ua c 97))
+         ?:  ?&((gte:ua c 65) (lte:ua c 70))    (add:ua 10 (sub:ua c 65))
+         16
+  ?:  (gte:ua d 16)  ~
+  $(rest t.rest, n (add:ua (mul:ua n 16) d), any %.y)
+:: PARSE-BIN - parse 0b.../0B... binary tape; ~ if invalid
+++  parse-bin
+  |=  t=tape
+  ^-  (unit @ud)
+  ?.  ?&  ?=(^ t)  ?=(^ t.t)
+          =(48 i.t)
+          ?|(=(98 i.t.t) =(66 i.t.t))
+      ==  ~
+  =/  rest  t.t.t
+  =|  n=@ud
+  =/  any  ^-(? %.n)
+  |-
+  ?~  rest  ?.  any  ~  `n
+  ?.  ?|(=(48 i.rest) =(49 i.rest))  ~
+  $(rest t.rest, n (add:ua (mul:ua n 2) (sub:ua i.rest 48)), any %.y)
+:: PARSE-NUM - try hex, then binary, then decimal; ~ if not a number
+++  parse-num
+  |=  t=tape
+  ^-  (unit @ud)
+  =/  h  (parse-hex t)
+  ?^  h  h
+  =/  b  (parse-bin t)
+  ?^  b  b
+  (parse-dec t)
+:: PARSE - compile Forth source tape to prog
+::  Handles: numbers (dec/hex/bin), words, : ; ' ( comments
+::  Control flow: IF ELSE THEN, BEGIN AGAIN UNTIL, BEGIN WHILE REPEAT
+::  All words are folded to uppercase at parse time.
+++  parse
+  |=  src=tape
+  ^-  prog
+  =/  words  (split-ws (strip-line-comments src))
+  =|  out=prog
+  =|  cs=(list [tag=@t ix=@])
+  |-
+  ^-  prog
+  ?~  words  out
+  =/  w=tape   i.words
+  =/  rest     t.words
+  =/  wu=cord  (crip (cuss w))
+  ::  Paren comment: skip tokens until ')'
+  ?:  =(wu '(')
+    =/  ws  rest
+    |-
+    ?~  ws  ^$(words ~)
+    ?:  =((crip (cuss i.ws)) ')')  ^$(words t.ws)
+    $(ws t.ws)
+  ::  Semicolon ends definition
+  ?:  =(wu ';')
+    $(words rest, out (weld out ~[[%word w=';']]))
+  ::  Colon definition: next token is name
+  ?:  =(wu ':')
+    ?~  rest  out
+    $(words t.rest, out (weld out ~[[%colon name=(crip (cuss i.rest))]]))
+  ::  Tick: push xt without executing
+  ?:  =(wu '\'')
+    ?~  rest  out
+    $(words t.rest, out (weld out ~[[%tick w=(crip (cuss i.rest))]]))
+  ::  IF: compile 0BRANCH placeholder, push index onto cs
+  ?:  =(wu 'IF')
+    =/  ix  (lent out)
+    $(words rest, out (weld out ~[[%zbranch offset=--0]]), cs [['IF' ix] cs])
+  ::  ELSE: patch IF's zbranch, compile BRANCH placeholder
+  ?:  =(wu 'ELSE')
+    ?>  ?&(?=(^ cs) =('IF' tag.i.cs))
+    =/  ix-if      ix.i.cs
+    =/  ix-branch  (lent out)
+    =/  out2  (patch-prog out ix-if [%zbranch offset=(sun:si (sub:ua ix-branch ix-if))])
+    $(words rest, out (weld out2 ~[[%branch offset=--0]]), cs [['ELSE' ix-branch] t.cs])
+  ::  THEN: patch IF (or ELSE) branch to current position
+  ?:  =(wu 'THEN')
+    ?>  ?=(^ cs)
+    =/  ix-then  (lent out)
+    ?:  =('ELSE' tag.i.cs)
+      =/  ix-br  ix.i.cs
+      $(words rest, out (patch-prog out ix-br [%branch offset=(sun:si (sub:ua ix-then (inc:ua ix-br)))]), cs t.cs)
+    ?>  =('IF' tag.i.cs)
+    =/  ix-if  ix.i.cs
+    $(words rest, out (patch-prog out ix-if [%zbranch offset=(sun:si (sub:ua ix-then (inc:ua ix-if)))]), cs t.cs)
+  ::  BEGIN: push loop-start index
+  ?:  =(wu 'BEGIN')
+    $(words rest, cs [['BEGIN' (lent out)] cs])
+  ::  AGAIN: unconditional backward branch to BEGIN
+  ?:  =(wu 'AGAIN')
+    ?>  ?&(?=(^ cs) =('BEGIN' tag.i.cs))
+    =/  ix-begin  ix.i.cs
+    =/  ix-again  (lent out)
+    =/  off=@s    (dif:si (sun:si ix-begin) (sun:si (inc:ua ix-again)))
+    $(words rest, out (weld out ~[[%branch offset=off]]), cs t.cs)
+  ::  UNTIL: 0BRANCH back to BEGIN (flag=0 → loop, flag≠0 → exit)
+  ?:  =(wu 'UNTIL')
+    ?>  ?&(?=(^ cs) =('BEGIN' tag.i.cs))
+    =/  ix-begin  ix.i.cs
+    =/  ix-until  (lent out)
+    =/  off=@s    (dif:si (sun:si ix-begin) (sun:si (inc:ua ix-until)))
+    $(words rest, out (weld out ~[[%zbranch offset=off]]), cs t.cs)
+  ::  WHILE: 0BRANCH out of loop when flag=0
+  ?:  =(wu 'WHILE')
+    =/  ix  (lent out)
+    $(words rest, out (weld out ~[[%zbranch offset=--0]]), cs [['WHILE' ix] cs])
+  ::  REPEAT: backward branch to BEGIN, patch WHILE exit
+  ?:  =(wu 'REPEAT')
+    ?>  ?&(?=(^ cs) =('WHILE' tag.i.cs))
+    =/  ix-while  ix.i.cs
+    =/  cs2       t.cs
+    ?>  ?&(?=(^ cs2) =('BEGIN' tag.i.cs2))
+    =/  ix-begin  ix.i.cs2
+    =/  ix-rep    (lent out)
+    =/  off-back=@s  (dif:si (sun:si ix-begin) (sun:si (inc:ua ix-rep)))
+    =/  out2  (weld out ~[[%branch offset=off-back]])
+    =/  off-exit=@s  (sun:si (sub:ua (lent out2) (inc:ua ix-while)))
+    $(words rest, out (patch-prog out2 ix-while [%zbranch offset=off-exit]), cs t.cs2)
+  ::  Try as number literal
+  =/  mn  (parse-num w)
+  ?^  mn  $(words rest, out (weld out ~[[%num n=u.mn]]))
+  ::  Otherwise: word token (already uppercased)
+  $(words rest, out (weld out ~[[%word w=wu]]))
 --
