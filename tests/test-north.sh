@@ -12,7 +12,13 @@ T="9.223.372.036.854.775.807"
 F=0
 
 north-eval() {
-  (echo "=>"; cat "$LIB"; echo "$1") | ~/bin/urbit eval 2>&1 | tail -1
+  local raw
+  raw=$( (echo "=>"; cat "$LIB"; echo "$1") | ~/bin/urbit eval 2>&1 )
+  # Strip ANSI, CR, eval header lines; collapse multi-line output to one line
+  echo "$raw" \
+    | grep -v '^lite:\|^loom:\|^eval (run):\|^eval:' \
+    | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' \
+    | tr '\n' ' ' | sed 's/  */ /g' | sed 's/^ *//; s/ *$//'
 }
 
 check() {
@@ -21,8 +27,6 @@ check() {
   local expected="$3"
   local result
   result=$(north-eval "$expr")
-  # strip ANSI color codes and carriage returns
-  result=$(echo "$result" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r')
   if [ "$result" = "$expected" ]; then
     echo "PASS  $desc"
     PASS=$((PASS + 1))
@@ -83,13 +87,16 @@ echo ""
 echo "=== Branching (IF/ELSE/THEN) ==="
 
 # 5 3 > IF 99 THEN  →  true path: zbranch skips 0, pushes 99
-check "if-true"    "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=1] [%num n=99]] *north)" "~[99]"
-# 3 5 > IF 99 THEN  →  false path: zbranch skips 1 token
-check "if-false"   "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=1] [%num n=99]] *north)" "~"
+# offset=--1: ip-advance(ip, --1) = ip+1+1 = ip+2, skipping %num n=99
+check "if-true"    "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=--1] [%num n=99]] *north)" "~[99]"
+# 3 5 > IF 99 THEN  →  false path: zbranch jumps to ip+2, skipping %num n=99
+check "if-false"   "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=--1] [%num n=99]] *north)" "~"
 # 5 3 > IF 1 ELSE 2 THEN  →  true path: push 1, branch over else
-check "if-else-true"  "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] *north)" "~[1]"
+# zbranch offset=--2: ip+1+2=ip+3, skipping %num n=1 and %branch
+# branch offset=--1: ip+1+1=ip+2, skipping %num n=2
+check "if-else-true"  "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=--2] [%num n=1] [%branch offset=--1] [%num n=2]] *north)" "~[1]"
 # 3 5 > IF 1 ELSE 2 THEN  →  false path: zbranch skips to else, push 2
-check "if-else-false" "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=2] [%num n=1] [%branch offset=1] [%num n=2]] *north)" "~[2]"
+check "if-else-false" "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='>'] [%zbranch offset=--2] [%num n=1] [%branch offset=--1] [%num n=2]] *north)" "~[2]"
 
 echo ""
 echo "=== Tier 4: Return Stack ==="
@@ -201,6 +208,78 @@ check "state interpret" "d-stack:(eval ~[[%word w='state']] *north)"  "~[$F]"
 # Word with comparison: : pos?  0 > ;
 check ": pos? -- 5"     "d-stack:(eval ~[[%colon name='pos?'] [%num n=0] [%word w='>'] [%word w=';'] [%num n=5] [%word w='pos?']] *north)"  "~[$T]"
 check ": pos? -- 0"     "d-stack:(eval ~[[%colon name='pos?'] [%num n=0] [%word w='>'] [%word w=';'] [%num n=0] [%word w='pos?']] *north)"  "~[$F]"
+
+echo ""
+echo "=== Tier 9: Parser ==="
+
+# parse-dec (unit @ud prints as [~ val] when non-null)
+check "dec 0"      "(parse-dec \"0\")"            "[~ 0]"
+check "dec 42"     "(parse-dec \"42\")"           "[~ 42]"
+check "dec 255"    "(parse-dec \"255\")"          "[~ 255]"
+check "dec empty"  "(parse-dec \"\")"             "~"
+check "dec abc"    "(parse-dec \"abc\")"          "~"
+check "dec 12a"    "(parse-dec \"12a\")"          "~"
+
+# parse-hex
+check "hex 0xff"   "(parse-hex \"0xff\")"         "[~ 255]"
+check "hex 0xFF"   "(parse-hex \"0xFF\")"         "[~ 255]"
+check "hex 0x10"   "(parse-hex \"0x10\")"         "[~ 16]"
+check "hex empty"  "(parse-hex \"0x\")"           "~"
+check "hex bad"    "(parse-hex \"abc\")"          "~"
+
+# parse-bin
+check "bin 0b1"    "(parse-bin \"0b1\")"          "[~ 1]"
+check "bin 0b1010" "(parse-bin \"0b1010\")"       "[~ 10]"
+check "bin 0b0"    "(parse-bin \"0b0\")"          "[~ 0]"
+check "bin empty"  "(parse-bin \"0b\")"           "~"
+check "bin bad"    "(parse-bin \"abc\")"          "~"
+
+# parse-num (tries hex, bin, dec in order)
+check "num dec"    "(parse-num \"99\")"           "[~ 99]"
+check "num hex"    "(parse-num \"0x1F\")"         "[~ 31]"
+check "num bin"    "(parse-num \"0b111\")"        "[~ 7]"
+check "num bad"    "(parse-num \"xyz\")"          "~"
+
+# strip-line-comments
+check "slc none"   "(strip-line-comments \"hello world\")"       "\"hello world\""
+check "slc full"   "(strip-line-comments \"\\\\ comment\")"      "\"\""
+check "slc mid"    "(strip-line-comments \"hello \\\\ rest\")"   "\"hello \""
+
+# split-ws ((list tape) prints as <<...>>)
+check "split basic" "(split-ws \"a b c\")"       "<<\"a\" \"b\" \"c\">>"
+check "split multi" "(split-ws \"  a  b  \")"    "<<\"a\" \"b\">>"
+check "split empty" "(split-ws \"\")"            "<<>>"
+
+# parse: text -> prog (check key structural properties)
+# Simple number
+check "parse num"    "(parse \"42\")"              "~[[%num n=42]]"
+# Simple word (uppercased)
+check "parse word"   "(parse \"dup\")"             "~[[%word w='DUP']]"
+# Colon definition tokens
+check "parse colon"  "(parse \": sq\")"            "~[[%colon name='SQ']]"
+# Tick
+check "parse tick"   "(parse \"' dup\")"           "~[[%tick w='DUP']]"
+# Hex literal
+check "parse hex"    "(parse \"0xff\")"            "~[[%num n=255]]"
+# Binary literal
+check "parse bin"    "(parse \"0b1010\")"          "~[[%num n=10]]"
+# Paren comment ignored
+check "parse paren"  "(parse \"( comment ) 5\")"  "~[[%num n=5]]"
+# IF/THEN: zbranch offset=--1
+check "parse if-then" "(parse \"5 3 > IF 99 THEN\")" \
+  "~[[%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=--1] [%num n=99]]"
+# IF/ELSE/THEN: zbranch offset=--2, branch offset=--1
+check "parse if-else-then" "(parse \"5 3 > IF 1 ELSE 2 THEN\")" \
+  "~[ [%num n=5] [%num n=3] [%word w='>'] [%zbranch offset=--2] [%num n=1] [%branch offset=--1] [%num n=2] ]"
+
+# Full round-trip: parse then eval
+check "parse+eval arith"  "d-stack:(eval (parse \"3 4 +\") *north)"         "~[7]"
+check "parse+eval dup"    "d-stack:(eval (parse \"5 dup\") *north)"          "~[5 5]"
+check "parse+eval def"    "d-stack:(eval (parse \": sq dup * ; 4 sq\") *north)"  "~[16]"
+check "parse+eval if-t"   "d-stack:(eval (parse \"5 3 > IF 99 THEN\") *north)"   "~[99]"
+check "parse+eval if-f"   "d-stack:(eval (parse \"3 5 > IF 99 THEN\") *north)"   "~"
+check "parse+eval ifelse" "d-stack:(eval (parse \"5 3 > IF 1 ELSE 2 THEN\") *north)" "~[1]"
+check "parse+eval case"   "d-stack:(eval (parse \"DUP 5\") *north)"          "~[5]"
 
 echo ""
 echo "=== Results ==="
