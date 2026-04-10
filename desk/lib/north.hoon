@@ -1,5 +1,4 @@
 :: North Core Primitives
-=>
 |%
 +$  stak  (list *)
 +$  lexi  (list (pair cord prog))
@@ -57,9 +56,6 @@
       [%of-branch offset=@s] ::  OF: pop val, compare with NOS selector; equal→drop+go, else→jump
   ==
 +$  prog  (list token)
---
-::
-|%
 :: Tier 0: Stack Manipulation
 :: WELD - concatenate two lists (wet for list polymorphism)
 ++  weld
