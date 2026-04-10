@@ -13,19 +13,20 @@
       d-stack=stak
   ==
 +$  settings-map
-  $:  state=?
+  $:  state=?           ::  %.y = interpret mode (bunt), %.n = compile mode
       base=@ud
       tin=@ud
       ntib=@ud
       here=@ud
       depth=@ud
+      current-def=cord  ::  name being compiled; '' when not compiling
   ==
 +$  buffer-map
   $:  tib=tape
       word-buffer=tape
       pad=tape
       pic-buffer=tape
-      comp-buffer=(list @)
+      comp-buffer=prog  ::  token accumulator during : ... ; compilation
   ==
 +$  effect
   $%  [%read-line ~]
@@ -38,6 +39,7 @@
   $%  [%num n=@]           ::  unsigned literal
       [%word w=@t]         ::  word name (execute immediately)
       [%tick w=@t]         ::  ' WORD: push xt (cord) without executing
+      [%colon name=cord]   ::  : NAME — begin word definition
       [%zbranch offset=@]  ::  0BRANCH: pop flag; if 0 skip forward by offset
       [%branch offset=@]   ::  BRANCH: unconditional skip forward by offset
   ==
@@ -46,10 +48,10 @@
 ::
 |%
 :: Tier 0: Stack Manipulation
-:: WELD - concatenate two lists
+:: WELD - concatenate two lists (wet for list polymorphism)
 ++  weld
-  |=  [a=stak b=stak]
-  ^-  stak
+  |*  [a=(list) b=(list)]
+  ^+  a
   |-
   ?~  a  b
   [i.a $(a t.a)]
@@ -298,16 +300,39 @@
     ?~  body
       st(d-stack (push (push ds name) 0))
     st(d-stack (push (push ds name) forth-true))
+  ::  Tier 8: Compilation
+  ::  STATE ( -- flag ) 0=interpret, forth-true=compile (standard Forth convention)
+  ?:  =(w 'state')
+    st(d-stack (push ds ?:(state.settings.st 0 forth-true)))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state
 ++  eval
   |=  [p=prog st=north]
   ^-  north
   ?~  p  st
+  ::  Compile mode (state=%.n): accumulate tokens into comp-buffer
+  ::  ';' (as %word) is the only token that ends compilation
+  ?.  state.settings.st
+    ?:  ?=([%word *] i.p)
+      ?:  =(';' w.i.p)
+        ::  End of definition: store body in dict, return to interpret
+        =/  name  current-def.settings.st
+        =/  body  comp-buffer.buffers.st
+        =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def ''), buffers buffers.st(comp-buffer ~))
+        $(p t.p, st st2)
+      ::  Compile this word token into body
+      $(p t.p, st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[i.p])))
+    ::  Compile any non-word token (num, tick, zbranch, branch) into body
+    $(p t.p, st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[i.p])))
+  ::  Interpret mode (state=%.y)
   ?-  -.i.p
     %num      $(p t.p, st st(d-stack (push d-stack.st n.i.p)))
     %word     $(p t.p, st (run-word w.i.p st))
     %tick     $(p t.p, st st(d-stack (push d-stack.st w.i.p)))
+    %colon
+      ::  Begin definition: switch to compile mode, clear comp-buffer
+      ?>  state.settings.st
+      $(p t.p, st st(settings settings.st(state %.n, current-def name.i.p), buffers buffers.st(comp-buffer ~)))
     %zbranch
       =/  ds  d-stack.st
       =^  flag=@  ds  (pop ds)
@@ -560,9 +585,9 @@
 :: WORD - text-layer word parser; stub pending text input
 ++  word      !!
 :: Tier 8: Compilation
-++  colon     !!
-++  semicolon  !!
-++  state      !!
+:: Colon definitions are handled directly in eval via the %colon token
+:: and the ';' %word token; no separate gate arms are needed.
+:: IMMEDIATE and CREATE require dict entry flags; stubs pending.
 ++  immediate  !!
 ++  create     !!
 --

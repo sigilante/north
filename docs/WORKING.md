@@ -21,3 +21,24 @@ That is:
 7. Data stack at +7 (rightwards stack list, snoc to tail)
 
 Stacks:  `~[new-value old-stack]` vs. `[~ old-stack new-value]`
+
+## Memory Layout: Open Question
+
+The current `mem=stak` field uses a `(list *)` as a flat indexed array, with
+addresses as list indices. This is simple but non-Nock-native.
+
+An alternative under consideration is **Nock-style tree addressing**: memory
+would be a single noun (cell tree), and addresses would be Nock axes (1=root,
+2=head, 3=tail, etc.). Fetch and store would use Nock's `+2` and `+3` tree
+navigation rather than list index arithmetic.
+
+**Tradeoffs:**
+- Tree addressing maps naturally onto Nock's noun structure and would make
+  North's memory model a first-class Nock citizen
+- List indexing is simpler to reason about and matches flat-memory Forth
+- Tree addressing makes HERE/ALLOT semantics less obvious (what does
+  "allocating" a tree cell mean?)
+- List model is O(n) for random access; tree is O(log n) by axis depth
+
+Decision deferred. The list model will remain until the self-contained Nock
+noun goal makes tree addressing clearly preferable.

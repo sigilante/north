@@ -180,6 +180,29 @@ check "find known"    "$SQ_S (rear d-stack:(eval ~[[%num n='sq'] [%word w='find'
 check "find unknown"  "(rear d-stack:(eval ~[[%num n='unk'] [%word w='find']] *north))"          "$F"
 
 echo ""
+echo "=== Tier 8: Compilation ==="
+
+# Basic colon definition and call: : sq  dup * ;
+check ": sq -- 4 sq"    "d-stack:(eval ~[[%colon name='sq'] [%word w='dup'] [%word w='*'] [%word w=';'] [%num n=4] [%word w='sq']] *north)"  "~[16]"
+# Composed calls
+check ": sq -- 3 sq sq" "d-stack:(eval ~[[%colon name='sq'] [%word w='dup'] [%word w='*'] [%word w=';'] [%num n=3] [%word w='sq'] [%word w='sq']] *north)"  "~[81]"
+# Definition stored in dict
+check ": sq -- dict"    "=(~ dict:(eval ~[[%colon name='sq'] [%word w='dup'] [%word w='*'] [%word w=';']] *north))"  "%.n"
+
+# Word with literal: : double  2 * ;
+check ": double -- 7"   "d-stack:(eval ~[[%colon name='double'] [%num n=2] [%word w='*'] [%word w=';'] [%num n=7] [%word w='double']] *north)"  "~[14]"
+
+# Word calling another word: : quad  sq sq ;
+check ": quad -- 3"     "d-stack:(eval ~[[%colon name='sq'] [%word w='dup'] [%word w='*'] [%word w=';'] [%colon name='quad'] [%word w='sq'] [%word w='sq'] [%word w=';'] [%num n=3] [%word w='quad']] *north)"  "~[81]"
+
+# STATE word: 0 in interpret, forth-true in compile
+check "state interpret" "d-stack:(eval ~[[%word w='state']] *north)"  "~[$F]"
+
+# Word with comparison: : pos?  0 > ;
+check ": pos? -- 5"     "d-stack:(eval ~[[%colon name='pos?'] [%num n=0] [%word w='>'] [%word w=';'] [%num n=5] [%word w='pos?']] *north)"  "~[$T]"
+check ": pos? -- 0"     "d-stack:(eval ~[[%colon name='pos?'] [%num n=0] [%word w='>'] [%word w=';'] [%num n=0] [%word w='pos?']] *north)"  "~[$F]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
