@@ -736,6 +736,90 @@ check "catch throw 0 in xt" \
   "d-stack:(eval (parse \": SAFE 5 0 THROW DROP ; ' SAFE CATCH\") *north)" \
   "~[0]"
 
+# =============================================================================
+# Tier 17: String literals (S" / .") and CASE/OF/ENDOF/ENDCASE
+# =============================================================================
+
+# --- S" (string literal) ---
+
+# S" parses to %str-lit token
+check "parse str-lit" \
+  "(parse \"S\\\" hi\\\"\")" \
+  "~[[%str-lit text=\"hi\"]]"
+
+# S" pushes c-addr (0) and count on d-stack
+check "str-lit addr-count" \
+  "d-stack:(eval (parse \"S\\\" hello\\\"\") *north)" \
+  "~[0 5]"
+
+# S" advances HERE by string length
+check "str-lit advances here" \
+  "here.settings:(eval (parse \"S\\\" hello\\\"\") *north)" \
+  "5"
+
+# S" TYPE reads back the stored string
+check "str-lit type" \
+  "output.buffers:(eval (parse \"S\\\" hi\\\" TYPE\") *north)" \
+  "\"hi\""
+
+# S" with embedded spaces: tokenizer collects until closing "
+check "str-lit multiword" \
+  "output.buffers:(eval (parse \"S\\\" hello world\\\" TYPE\") *north)" \
+  "\"hello world\""
+
+# --- ." (immediate print) ---
+
+# ." parses to %dot-str token
+check "parse dot-str" \
+  "(parse \".\\\" hi\\\"\")" \
+  "~[[%dot-str text=\"hi\"]]"
+
+# ." appends to output buffer at eval time
+check "dot-str output" \
+  "output.buffers:(eval (parse \".\\\" hello\\\"\") *north)" \
+  "\"hello\""
+
+# ." inside a compiled word prints when executed
+check "dot-str in word" \
+  "output.buffers:(eval (parse \": GREET .\\\" hi\\\" ; GREET\") *north)" \
+  "\"hi\""
+
+# --- CASE / OF / ENDOF / ENDCASE ---
+
+# Match first OF: selector dropped, body runs, result on stack
+check "case match first" \
+  "d-stack:(eval (parse \"1 CASE 1 OF 10 ENDOF ENDCASE\") *north)" \
+  "~[10]"
+
+# Match second OF
+check "case match second" \
+  "d-stack:(eval (parse \"2 CASE 1 OF 10 ENDOF 2 OF 20 ENDOF ENDCASE\") *north)" \
+  "~[20]"
+
+# No match: selector dropped by ENDCASE DROP, stack empty
+check "case no match" \
+  "d-stack:(eval (parse \"3 CASE 1 OF 10 ENDOF 2 OF 20 ENDOF ENDCASE\") *north)" \
+  "~"
+
+# No match with default code: default runs, selector dropped
+check "case default" \
+  "output.buffers:(eval (parse \"3 CASE 1 OF .\\\" one\\\" ENDOF .\\\" other\\\" ENDCASE\") *north)" \
+  "\"other\""
+
+# CASE with output strings
+check "case output match" \
+  "output.buffers:(eval (parse \"1 CASE 1 OF .\\\" one\\\" ENDOF 2 OF .\\\" two\\\" ENDOF ENDCASE\") *north)" \
+  "\"one\""
+
+check "case output second" \
+  "output.buffers:(eval (parse \"2 CASE 1 OF .\\\" one\\\" ENDOF 2 OF .\\\" two\\\" ENDOF ENDCASE\") *north)" \
+  "\"two\""
+
+# CASE in compiled word
+check "case in word" \
+  "output.buffers:(eval (parse \": TEST CASE 1 OF .\\\" A\\\" ENDOF 2 OF .\\\" B\\\" ENDOF ENDCASE ; 2 TEST\") *north)" \
+  "\"B\""
+
 echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"

@@ -52,6 +52,9 @@
       [%variable name=cord] ::  VARIABLE: allocate cell, bind name to its address
       [%constant name=cord] ::  CONSTANT: pop TOS, bind name to that value
       [%does-gt ~]           ::  DOES>: runtime split; tokens after go to last-created word
+      [%str-lit text=tape]   ::  S" text" — store in mem, push c-addr and count
+      [%dot-str text=tape]   ::  ." text" — append directly to output buffer
+      [%of-branch offset=@s] ::  OF: pop val, compare with NOS selector; equal→drop+go, else→jump
   ==
 +$  prog  (list token)
 --
@@ -240,6 +243,13 @@
   |=  c=*
   ?>  ?=(@ c)
   ^-(@t c)
+:: ROLL-STORE-CHARS - store each tape char at HERE via COMMA, advancing HERE
+++  roll-store-chars
+  |=  [chars=tape st=north]
+  ^-  north
+  ?~  chars  st
+  =/  st1  (comma ^-(@ i.chars) st)
+  $(chars t.chars, st st1)
 :: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
   |=  [w=@t st=north]
@@ -682,6 +692,26 @@
       ?~  old-body  !!
       =/  new-body  (weld u.old-body tail)
       $(ip n, st st(dict (dict-update cname new-body dict.st)))
+    %of-branch
+      ::  Pop TOS (OF value), peek NOS (selector).
+      ::  Equal: drop selector, fall into OF body.
+      ::  Not equal: leave selector, jump past ENDOF branch.
+      =/  ds  d-stack.st
+      =^  val=@  ds  (pop ds)
+      =/  sel  (rear ds)
+      ?>  ?=(@ sel)
+      ?:  =(val ^-(@ sel))
+        $(ip +(ip), st st(d-stack (drop ds)))
+      $(ip (ip-advance ip offset.tok), st st(d-stack ds))
+    %str-lit
+      ::  Store text chars in mem at HERE, push c-addr and count ( -- c-addr u )
+      =/  addr  here.settings.st
+      =/  cnt   (lent text.tok)
+      =/  st1   (roll-store-chars text.tok st)
+      $(ip +(ip), st st1(d-stack (push (push d-stack.st1 addr) cnt)))
+    %dot-str
+      ::  Append string text directly to output buffer
+      $(ip +(ip), st st(buffers buffers.st(output (weld output.buffers.st text.tok))))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -989,6 +1019,35 @@
     ?~  cur  $(t t.t)
     $(t t.t, words [(flop cur) words], cur ~)
   $(t t.t, cur [c cur])
+:: TOKENIZE-SRC - like split-ws but handles S" and ." string literals as single tokens
+::  S" text" and ." text" consume until closing " and are emitted as one entry
+++  tokenize-src
+  |=  src=tape
+  ^-  (list tape)
+  =|  words=(list tape)
+  =|  cur=tape
+  |-
+  ?~  src
+    ?~  cur  (flop words)
+    (flop [(flop cur) words])
+  =/  c  i.src
+  =/  ws  ?|(=(32 c) =(9 c) =(10 c) =(13 c))
+  ?:  ws
+    ?~  cur  $(src t.src)
+    =/  cw  (flop cur)
+    ?:  ?|(=(~['S' '"'] cw) =(~['.' '"'] cw))
+      ::  The space is the ANS delimiter after S" or ." — collect string until closing "
+      =|  str-content=tape
+      =/  str-rest  t.src
+      |-
+      ?~  str-rest
+        ::  Unterminated string literal: close it
+        ^$(src ~, words [(weld cw (weld str-content ~['"'])) words], cur ~)
+      ?:  =('"' i.str-rest)  ::  closing double-quote
+        ^$(src t.str-rest, words [(weld cw (weld str-content ~['"'])) words], cur ~)
+      $(str-rest t.str-rest, str-content (weld str-content ~[i.str-rest]))
+    $(src t.src, words [cw words], cur ~)
+  $(src t.src, cur [c cur])
 :: PARSE-DEC - parse unsigned decimal tape; ~ if invalid or empty
 ::  Uses 'any' flag to distinguish "" (invalid) from "0" (valid)
 ++  parse-dec
@@ -1052,7 +1111,7 @@
 ++  parse
   |=  src=tape
   ^-  prog
-  =/  words  (split-ws (strip-line-comments src))
+  =/  words  (tokenize-src (strip-line-comments src))
   =|  out=prog
   =|  cs=(list [tag=@t ix=@])
   |-
@@ -1061,6 +1120,14 @@
   =/  w=tape   i.words
   =/  rest     t.words
   =/  wu=cord  (crip (cuss w))
+  ::  S" and ." string literals: shape is <S"|."><content>" (len>=3, ends ", prefix is S" or .")
+  =/  w-pre  (scag 2 w)  ::  first 2 chars; safe on any tape (empty if w shorter)
+  ?:  ?&((gte:ua (lent w) 3) =(34 (rear w)) =(~['S' '"'] w-pre))
+    =/  content  (scag (sub:ua (lent w) 3) (slag 2 w))
+    $(words rest, out (weld out ~[[%str-lit text=content]]))
+  ?:  ?&((gte:ua (lent w) 3) =(34 (rear w)) =(~['.' '"'] w-pre))
+    =/  content  (scag (sub:ua (lent w) 3) (slag 2 w))
+    $(words rest, out (weld out ~[[%dot-str text=content]]))
   ::  Paren comment: skip tokens until ')'
   ?:  =(wu '(')
     =/  ws  rest
@@ -1144,6 +1211,33 @@
   ::  DOES>: emit %does-gt token (valid inside a : ... ; definition)
   ?:  =(wu 'DOES>')
     $(words rest, out (weld out ~[[%does-gt ~]]))
+  ::  CASE: push CASE marker onto compile stack (no token emitted)
+  ?:  =(wu 'CASE')
+    $(words rest, cs [['CASE' 0] cs])
+  ::  OF: emit %of-branch placeholder, record index for ENDOF to backpatch
+  ?:  =(wu 'OF')
+    =/  ix  (lent out)
+    $(words rest, out (weld out ~[[%of-branch offset=--0]]), cs [['OF' ix] cs])
+  ::  ENDOF: patch OF's %of-branch to skip past this branch; emit forward branch to ENDCASE
+  ?:  =(wu 'ENDOF')
+    ?>  ?&(?=(^ cs) =('OF' tag.i.cs))
+    =/  ix-ob     ix.i.cs
+    =/  ix-endof  (lent out)
+    ::  %of-branch jumps to ix-endof+1 (past the ENDOF branch) on mismatch
+    =/  out2  (patch-prog out ix-ob [%of-branch offset=(sun:si (sub:ua ix-endof ix-ob))])
+    $(words rest, out (weld out2 ~[[%branch offset=--0]]), cs [['ENDOF' ix-endof] t.cs])
+  ::  ENDCASE: patch all ENDOF branches to jump here, then emit DROP for the selector
+  ?:  =(wu 'ENDCASE')
+    =/  ix-drop  (lent out)
+    =/  out2   out
+    =/  cs2    cs
+    |-
+    ?>  ?=(^ cs2)
+    ?:  =('CASE' tag.i.cs2)
+      ^$(words rest, out (weld out2 ~[[%word w='DROP']]), cs t.cs2)
+    ?>  =('ENDOF' tag.i.cs2)
+    =/  off=@s  (sun:si (sub:ua ix-drop ix.i.cs2))
+    $(out2 (patch-prog out2 ix.i.cs2 [%branch offset=off]), cs2 t.cs2)
   ::  DO: emit %do token, push ['DO' ix-do] onto compile stack
   ?:  =(wu 'DO')
     =/  ix  (lent out)
