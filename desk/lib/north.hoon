@@ -2,7 +2,7 @@
 =>
 |%
 +$  stak  (list *)
-+$  lexi  (list [term *])
++$  lexi  (list (pair cord prog))
 +$  north
   $:  %uno
       dict=lexi
@@ -11,15 +11,6 @@
       mem=stak
       r-stack=stak
       d-stack=stak
-  ==
-+$  word-entry
-  $:  name=term
-      flags=word-flags
-      formula=nock
-  ==
-+$  word-flags
-  $:  immediate=?
-      hidden=?
   ==
 +$  settings-map
   $:  state=?
@@ -45,7 +36,8 @@
 ::  words use cord names so Forth symbols (+, *, etc.) are valid
 +$  token
   $%  [%num n=@]           ::  unsigned literal
-      [%word w=@t]         ::  word name
+      [%word w=@t]         ::  word name (execute immediately)
+      [%tick w=@t]         ::  ' WORD: push xt (cord) without executing
       [%zbranch offset=@]  ::  0BRANCH: pop flag; if 0 skip forward by offset
       [%branch offset=@]   ::  BRANCH: unconditional skip forward by offset
   ==
@@ -167,12 +159,23 @@
   =/  v  (rear s)
   ?>  ?=(@ v)
   [v (drop s)]
+:: FIND-DICT - look up a word in the user dictionary; returns (unit prog)
+++  find-dict
+  |=  [w=cord d=lexi]
+  ^-  (unit prog)
+  |-
+  ?~  d  ~
+  ?:  =(w p.i.d)  `q.i.d
+  $(d t.d)
 :: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
   |=  [w=@t st=north]
   ^-  north
   =/  ds  d-stack.st
   =/  rs  r-stack.st
+  ::  User dictionary takes precedence over primitives
+  =/  body  (find-dict w dict.st)
+  ?^  body  (eval u.body st)
   ::  Stack ops ( d-stack only )
   ?:  =(w 'dup')    st(d-stack (dup ds))
   ?:  =(w 'drop')   st(d-stack (drop ds))
@@ -283,6 +286,18 @@
   ?:  =(w 'cell+')
     =^  a=@  ds  (pop ds)
     st(d-stack (push ds (inc:ua a)))
+  ::  Tier 7: Interpreter core
+  ::  EXECUTE ( xt -- ) run the word named by xt
+  ?:  =(w 'execute')
+    =^  xt=cord  ds  (pop ds)
+    (run-word xt st(d-stack ds))
+  ::  FIND ( cord -- cord 0 | xt forth-true ) search user dict
+  ?:  =(w 'find')
+    =^  name=cord  ds  (pop ds)
+    =/  body  (find-dict name dict.st)
+    ?~  body
+      st(d-stack (push (push ds name) 0))
+    st(d-stack (push (push ds name) forth-true))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state
 ++  eval
@@ -292,6 +307,7 @@
   ?-  -.i.p
     %num      $(p t.p, st st(d-stack (push d-stack.st n.i.p)))
     %word     $(p t.p, st (run-word w.i.p st))
+    %tick     $(p t.p, st st(d-stack (push d-stack.st w.i.p)))
     %zbranch
       =/  ds  d-stack.st
       =^  flag=@  ds  (pop ds)
@@ -536,10 +552,13 @@
   ^-  north
   st(mem (weld mem.st (reap n 0)), settings settings.st(here (add:ua here.settings.st n)))
 :: Tier 7: Interpreter Core
+:: DICT-ADD ( name body dict -- dict' )  prepend entry to lexi
+++  dict-add
+  |=  [name=cord body=prog d=lexi]
+  ^-  lexi
+  [[name body] d]
+:: WORD - text-layer word parser; stub pending text input
 ++  word      !!
-++  find      !!
-++  execute   !!
-++  tick      !!
 :: Tier 8: Compilation
 ++  colon     !!
 ++  semicolon  !!
