@@ -137,6 +137,25 @@ check "+! add"       "$M d-stack:(eval ~[[%num n=5] [%num n=0] [%word w='+!'] [%
 check "+! mem"       "$M mem:(eval ~[[%num n=5] [%num n=0] [%word w='+!']] $ME"      "~[15 20 30]"
 
 echo ""
+echo "=== Tier 6: Dictionary Basics ==="
+
+# HERE on fresh state -> 0
+check "here-0"       "d-stack:(eval ~[[%word w='here']] *north)"                                                                      "~[0]"
+# ALLOT extends mem and advances HERE
+check "allot-mem"    "mem:(eval ~[[%num n=5] [%word w='allot']] *north)"                                                               "~[0 0 0 0 0]"
+check "allot-here"   "d-stack:(eval ~[[%num n=5] [%word w='allot'] [%word w='here']] *north)"                                          "~[5]"
+# , (comma) stores at HERE, advances HERE
+check ",-store"      "d-stack:(eval ~[[%num n=42] [%word w=','] [%num n=0] [%word w='@']] *north)"                                     "~[42]"
+check ",-here"       "d-stack:(eval ~[[%num n=42] [%word w=','] [%word w='here']] *north)"                                             "~[1]"
+check ",-mem"        "mem:(eval ~[[%num n=10] [%word w=','] [%num n=20] [%word w=','] [%num n=30] [%word w=',']] *north)"              "~[10 20 30]"
+# CELLS is identity (cell size = 1)
+check "cells"        "d-stack:(eval ~[[%num n=5] [%word w='cells']] *north)"                                                           "~[5]"
+# CELL+ increments address by 1
+check "cell+"        "d-stack:(eval ~[[%num n=3] [%word w='cell+']] *north)"                                                           "~[4]"
+# ALLOT then comma overwrites allocated cells
+check "allot-then-," "mem:(eval ~[[%num n=3] [%word w='allot'] [%num n=99] [%num n=1] [%word w='!']] *north)"                         "~[0 99 0]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1

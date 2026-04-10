@@ -268,6 +268,21 @@
     =/  raw  (fetch addr mem.st)
     ?>  ?=(@ raw)
     st(d-stack ds, mem (store mem.st addr (add:ua raw n)))
+  ::  Tier 6: Dictionary basics
+  ?:  =(w 'here')
+    st(d-stack (push ds here.settings.st))
+  ?:  =(w 'allot')
+    =^  n=@  ds  (pop ds)
+    (allot n st(d-stack ds))
+  ?:  =(w ',')
+    =/  v  (rear ds)
+    (comma v st(d-stack (drop ds)))
+  ::  CELLS: cell size is 1, so n CELLS = n (identity)
+  ?:  =(w 'cells')  st
+  ::  CELL+: add one cell size (1) to address
+  ?:  =(w 'cell+')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (inc:ua a)))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state
 ++  eval
@@ -506,10 +521,20 @@
   ^-  stak
   (snap mem n v)
 :: Tier 6: Dictionary Basics
-++  here      !!
-++  comma     !!
-++  cell      !!
-++  allot     !!
+:: COMMA ( v st -- st' )  Store v at HERE, advance HERE by one cell
+++  comma
+  |=  [v=* st=north]
+  ^-  north
+  =/  h  here.settings.st
+  =/  m  ?:  (lt:ua h (lent mem.st))
+           (store mem.st h v)
+         (weld mem.st ~[v])
+  st(mem m, settings settings.st(here (inc:ua h)))
+:: ALLOT ( n st -- st' )  Append n zero cells to mem, advance HERE by n
+++  allot
+  |=  [n=@ st=north]
+  ^-  north
+  st(mem (weld mem.st (reap n 0)), settings settings.st(here (add:ua here.settings.st n)))
 :: Tier 7: Interpreter Core
 ++  word      !!
 ++  find      !!
