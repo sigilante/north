@@ -108,6 +108,35 @@ check "r@ r-stack"  "r-stack:(eval ~[[%num n=7] [%word w='>r'] [%word w='r@']] *
 check ">r/>r/r>/r>" "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='>r'] [%word w='>r'] [%word w='r>'] [%word w='r>']] *north)" "~[1 2]"
 
 echo ""
+echo "=== Tier 5: Memory ==="
+
+# Pre-populated memory state: mem=~[10 20 30] (indices 0,1,2)
+# Pattern: =+(st=*north EXPR st(mem ~[10 20 30])))
+#   - =+(  opens 1 paren
+#   - (eval opens 1 paren (via d-stack: or mem:)
+#   - st(  opens 1 paren
+#   - )))  closes all three
+M="=+(st=*north"
+ME='st(mem ~[10 20 30])))'
+
+# @ fetch: addr 0 -> 10
+check "@ addr-0"     "$M d-stack:(eval ~[[%num n=0] [%word w='@']] $ME"              "~[10]"
+# @ fetch: addr 1 -> 20
+check "@ addr-1"     "$M d-stack:(eval ~[[%num n=1] [%word w='@']] $ME"              "~[20]"
+# @ fetch: addr 2 -> 30
+check "@ addr-2"     "$M d-stack:(eval ~[[%num n=2] [%word w='@']] $ME"              "~[30]"
+# ! store: 99 to addr 1, then fetch back
+check "! store"      "$M d-stack:(eval ~[[%num n=99] [%num n=1] [%word w='!'] [%num n=1] [%word w='@']] $ME" "~[99]"
+# ! store leaves data stack clean (no value residue)
+check "! d-stack"    "$M d-stack:(eval ~[[%num n=99] [%num n=0] [%word w='!']] $ME"  "~"
+# ! store updates mem
+check "! mem"        "$M mem:(eval ~[[%num n=99] [%num n=0] [%word w='!']] $ME"      "~[99 20 30]"
+# +! add to cell: addr 0 (10), add 5 -> 15
+check "+! add"       "$M d-stack:(eval ~[[%num n=5] [%num n=0] [%word w='+!'] [%num n=0] [%word w='@']] $ME" "~[15]"
+# +! updates mem
+check "+! mem"       "$M mem:(eval ~[[%num n=5] [%num n=0] [%word w='+!']] $ME"      "~[15 20 30]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
