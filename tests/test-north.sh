@@ -656,6 +656,65 @@ check "does> constant reuse" \
   "~[100]"
 
 echo ""
+echo "=== Tier 16: THROW ==="
+
+# THROW 0 is a no-op: stack unchanged (minus the 0)
+check "throw 0 noop" \
+  "d-stack:(eval (parse \"5 0 THROW\") *north)" \
+  "~[5]"
+
+# THROW k sets throw-val; d-stack is empty after popping k
+check "throw sets val" \
+  "throw-val.settings:(eval (parse \"42 THROW\") *north)" \
+  "42"
+
+echo ""
+echo "=== Tier 16: CATCH ==="
+
+# CATCH with no throw: xt runs normally, 0 pushed onto stack
+check "catch no throw" \
+  "d-stack:(eval (parse \"5 ' DUP CATCH\") *north)" \
+  "~[5 5 0]"
+
+# CATCH with direct THROW: saved d-stack restored, throw value pushed
+# Stack before CATCH: [42 'THROW']; saved-ds=[42]; THROW pops 42 sets tv=42 ds=[];
+# CATCH restores [42] then pushes 42 → [42 42]
+check "catch throw val" \
+  "d-stack:(eval (parse \"42 ' THROW CATCH\") *north)" \
+  "~[42 42]"
+
+# CATCH clears throw-val after handling
+check "catch clears throw-val" \
+  "throw-val.settings:(eval (parse \"42 ' THROW CATCH\") *north)" \
+  "0"
+
+# CATCH restores full d-stack: [1 2 3 99 'THROW'] → saved=[1 2 3 99], THROW pops 99,
+# CATCH restores [1 2 3 99] + push 99 → [1 2 3 99 99]
+check "catch restores stack" \
+  "d-stack:(eval (parse \"1 2 3 99 ' THROW CATCH\") *north)" \
+  "~[1 2 3 99 99]"
+
+# CATCH with user-defined throwing word
+check "catch user throw" \
+  "d-stack:(eval (parse \": THROWER 99 THROW ; ' THROWER CATCH\") *north)" \
+  "~[99]"
+
+# CATCH with no-op word: stack unmodified by xt, 0 pushed
+check "catch noop word" \
+  "d-stack:(eval (parse \": NOOP ; ' NOOP CATCH\") *north)" \
+  "~[0]"
+
+# Nested CATCH: inner catches its throw, outer sees no throw
+check "nested catch inner handles" \
+  "d-stack:(eval (parse \": INNER 7 THROW ; : OUTER ' INNER CATCH ; OUTER\") *north)" \
+  "~[7]"
+
+# CATCH works in a loop: count throws
+check "catch in loop" \
+  "d-stack:(eval (parse \": T 1 THROW ; 0 3 0 DO ' T CATCH + LOOP\") *north)" \
+  "~[3]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
