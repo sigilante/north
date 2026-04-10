@@ -20,6 +20,8 @@
       here=@ud
       depth=@ud
       current-def=cord  ::  name being compiled; '' when not compiling
+      create-name=cord  ::  name for next CREATE; '' when none pending
+      last-create=cord  ::  name of most recently CREATE'd word (for DOES> patching)
   ==
 +$  buffer-map
   $:  tib=tape
@@ -48,6 +50,7 @@
       [%ploop offset=@s]    ::  +LOOP: step by n (popped); loop or exit
       [%variable name=cord] ::  VARIABLE: allocate cell, bind name to its address
       [%constant name=cord] ::  CONSTANT: pop TOS, bind name to that value
+      [%does-gt ~]           ::  DOES>: runtime split; tokens after go to last-created word
   ==
 +$  prog  (list token)
 --
@@ -521,6 +524,12 @@
   ?:  =(w 'LITERAL')
     ::  LITERAL in interpret mode is a no-op (value already on stack)
     st
+  ::  CREATE (in run-word): create-name must be pre-set by the outer eval
+  ?:  =(w 'CREATE')
+    =/  cname  create-name.settings.st
+    ?>  !=(cname '')
+    =/  addr  here.settings.st
+    st(dict (dict-add cname ~[[%num n=addr]] dict.st), settings settings.st(create-name '', last-create cname))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
@@ -563,6 +572,25 @@
     %num
       $(ip +(ip), st st(d-stack (push d-stack.st n.tok)))
     %word
+      ::  CREATE in interpret mode: use pre-set create-name, else consume ip+1 as name
+      ?:  =(w.tok 'CREATE')
+        =/  cname  create-name.settings.st
+        ?.  =(cname '')
+          ::  create-name was pre-set by defining-word mechanism
+          =/  addr  here.settings.st
+          $(ip +(ip), st st(dict (dict-add cname ~[[%num n=addr]] dict.st), settings settings.st(create-name '', last-create cname)))
+        ::  Top-level CREATE name: consume next token as word name
+        ?>  (lth:ua (inc:ua ip) n)
+        =/  nxt  (snag-prog (inc:ua ip) p)
+        ?>  ?=([%word *] nxt)
+        =/  addr  here.settings.st
+        $(ip (add:ua ip 2), st st(dict (dict-add w.nxt ~[[%num n=addr]] dict.st), settings settings.st(last-create w.nxt)))
+      ::  User-defined defining word (has %does-gt in body): consume next token as name-to-create
+      ?:  (is-defining-word w.tok dict.st)
+        ?:  (gte:ua (inc:ua ip) n)  $(ip +(ip), st (run-word w.tok st))
+        =/  nxt  (snag-prog (inc:ua ip) p)
+        ?.  ?=([%word *] nxt)  $(ip +(ip), st (run-word w.tok st))
+        $(ip (add:ua ip 2), st (run-word w.tok st(settings settings.st(create-name w.nxt))))
       $(ip +(ip), st (run-word w.tok st))
     %tick
       $(ip +(ip), st st(d-stack (push d-stack.st w.tok)))
@@ -619,6 +647,16 @@
       =/  ds  d-stack.st
       =^  val=@  ds  (pop ds)
       $(ip +(ip), st st(d-stack ds, dict (dict-add name.tok ~[[%num n=val]] dict.st)))
+    %does-gt
+      ::  Append tokens after DOES> to the last-created word's body.
+      ::  Jumps to end of the current program (exits the defining word's eval).
+      =/  tail  (slag (inc:ua ip) p)
+      =/  cname  last-create.settings.st
+      ?>  !=(cname '')
+      =/  old-body  (find-word-body cname dict.st)
+      ?~  old-body  !!
+      =/  new-body  (weld u.old-body tail)
+      $(ip n, st st(dict (dict-update cname new-body dict.st)))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -866,9 +904,36 @@
 :: Tier 8: Compilation
 :: Colon definitions are handled directly in eval via the %colon token
 :: and the ';' %word token; no separate gate arms are needed.
-:: IMMEDIATE and CREATE require dict entry flags; stubs pending.
+:: IMMEDIATE requires dict entry flags; stub pending.
 ++  immediate  !!
-++  create     !!
+:: FIND-WORD-BODY - like find-word but returns (unit prog) for type-safe DOES> patching
+++  find-word-body
+  |=  [w=cord d=lexi]
+  ^-  (unit prog)
+  =/  wu  (crip (cuss (trip w)))
+  |-
+  ?~  d  ~
+  ?:  =((crip (cuss (trip p.i.d))) wu)  `q.i.d
+  $(d t.d)
+:: DICT-UPDATE - replace the body of the first matching entry in lexi
+++  dict-update
+  |=  [name=cord body=prog d=lexi]
+  ^-  lexi
+  |-
+  ?~  d  d
+  ?:  =((crip (cuss (trip p.i.d))) (crip (cuss (trip name))))
+    [[name body] t.d]
+  [i.d $(d t.d)]
+:: IS-DEFINING-WORD - does this word's body contain a %does-gt token?
+++  is-defining-word
+  |=  [w=cord d=lexi]
+  ^-  ?
+  =/  body  (find-word-body w d)
+  ?~  body  %.n
+  |-
+  ?~  u.body  %.n
+  ?:  ?=([%does-gt ~] i.u.body)  %.y
+  $(u.body t.u.body)
 :: Tier 9: Text Parser
 :: STRIP-LINE-COMMENTS - remove '\' and everything after it to end of line
 ++  strip-line-comments
@@ -1051,6 +1116,9 @@
     =/  out2  (weld out ~[[%branch offset=off-back]])
     =/  off-exit=@s  (sun:si (sub:ua (lent out2) (inc:ua ix-while)))
     $(words rest, out (patch-prog out2 ix-while [%zbranch offset=off-exit]), cs t.cs2)
+  ::  DOES>: emit %does-gt token (valid inside a : ... ; definition)
+  ?:  =(wu 'DOES>')
+    $(words rest, out (weld out ~[[%does-gt ~]]))
   ::  DO: emit %do token, push ['DO' ix-do] onto compile stack
   ?:  =(wu 'DO')
     =/  ix  (lent out)

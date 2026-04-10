@@ -603,6 +603,59 @@ check "do/loop sum"     "d-stack:(eval (parse \"0 6 1 DO I + LOOP\") *north)"   
 check "do/loop 4-I"     "d-stack:(eval (parse \"4 0 DO 4 I - LOOP\") *north)"       "~[4 3 2 1]"
 
 echo ""
+echo "=== Tier 15: CREATE Tokenization ==="
+
+# CREATE name parses as %word tokens — no special parse-time treatment
+check "parse create" \
+  "(parse \"CREATE foo\")" \
+  "~[[%word w='CREATE'] [%word w='FOO']]"
+
+# DOES> parses as %does-gt token (6+ tokens pretty-print with spaces inside brackets)
+check "parse does>" \
+  "(parse \": CONSTANT  CREATE , DOES> @ ;\")" \
+  "~[ [%colon name='CONSTANT'] [%word w='CREATE'] [%word w=','] [%does-gt ~] [%word w='@'] [%word w=';'] ]"
+
+echo ""
+echo "=== Tier 15: CREATE Round-trips ==="
+
+# Basic CREATE: creates word that pushes its data address (HERE at create time = 0)
+check "create bare addr"  "d-stack:(eval (parse \"CREATE foo  foo\") *north)"  "~[0]"
+
+# CREATE then ALLOT: word address is still 0 (allot after)
+check "create allot addr" "d-stack:(eval (parse \"CREATE foo  5 ALLOT  foo\") *north)"  "~[0]"
+
+# CREATE + comma: store a value, fetch it back
+check "create comma fetch" "d-stack:(eval (parse \"CREATE myval  42 ,  myval @\") *north)"  "~[42]"
+
+# CREATE two words: each gets own address
+check "create two words" \
+  "d-stack:(eval (parse \"CREATE a  10 ,  CREATE b  20 ,  a @ b @ +\") *north)" \
+  "~[30]"
+
+echo ""
+echo "=== Tier 15: DOES> Round-trips ==="
+
+# Simple defining word: CONSTANT
+check "does> constant"  \
+  "d-stack:(eval (parse \": CONSTANT  CREATE , DOES> @ ;  42 CONSTANT ANSWER  ANSWER\") *north)" \
+  "~[42]"
+
+# Multiple constants, arithmetic
+check "does> two constants sum" \
+  "d-stack:(eval (parse \": CONSTANT  CREATE , DOES> @ ;  1 CONSTANT A  2 CONSTANT B  A B +\") *north)" \
+  "~[3]"
+
+# Defining word for arrays (INDEX = creates a word that adds offset to base)
+check "does> array word" \
+  "d-stack:(eval (parse \": ARRAY  CREATE ALLOT  DOES> + ;  3 ARRAY arr  7 1 arr !  1 arr @\") *north)" \
+  "~[7]"
+
+# CONSTANT used repeatedly
+check "does> constant reuse" \
+  "d-stack:(eval (parse \": CONSTANT  CREATE , DOES> @ ;  10 CONSTANT X  X X *\") *north)" \
+  "~[100]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
