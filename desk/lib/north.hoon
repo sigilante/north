@@ -43,6 +43,9 @@
       [%colon name=cord]    ::  : NAME — begin word definition
       [%zbranch offset=@s]  ::  0BRANCH: pop flag; if 0 jump by offset (signed)
       [%branch offset=@s]   ::  BRANCH: unconditional jump by offset (signed)
+      [%do ~]               ::  DO: pop limit and start, init counted loop
+      [%loop offset=@s]     ::  LOOP: step by 1; loop or exit
+      [%ploop offset=@s]    ::  +LOOP: step by n (popped); loop or exit
   ==
 +$  prog  (list token)
 --
@@ -454,6 +457,24 @@
   ?:  =(w 'SPACES')
     =^  n=@  ds  (pop ds)
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (tape-reap n ' '))))
+  ::  Tier 11: Counted loop control words
+  ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
+  ?:  =(w 'I')
+    st(d-stack (push ds (rear rs)))
+  ?:  =(w 'J')
+    ::  Outer loop index: TOS-2 in rightward stack
+    =/  len  (lent rs)
+    ?>  (gte:ua len 3)
+    st(d-stack (push ds (snag (sub:ua (dec:ua len) 2) rs)))
+  ?:  =(w 'LEAVE')
+    ::  Force exit: set current index = limit (LOOP will exit next iteration)
+    ?>  (gte:ua (lent rs) 2)
+    =/  lim  (rear (drop rs))
+    st(r-stack (push (drop rs) lim))
+  ?:  =(w 'UNLOOP')
+    ::  Clean up loop params from r-stack without exiting the word
+    ?>  (gte:ua (lent rs) 2)
+    st(r-stack (drop (drop rs)))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
@@ -500,6 +521,36 @@
       $(ip +(ip), st st(d-stack ds))
     %branch
       $(ip (ip-advance ip offset.tok))
+    %do
+      ::  Pop start(TOS) and limit from d-stack; push limit then start onto r-stack
+      =/  ds  d-stack.st
+      =^  start=@  ds  (pop ds)
+      =^  lim=@    ds  (pop ds)
+      $(ip +(ip), st st(d-stack ds, r-stack (push (push r-stack.st lim) start)))
+    %loop
+      ::  Increment index; exit if new-index >= limit, else loop back
+      =/  idx  (rear r-stack.st)
+      ?>  ?=(@ idx)
+      =/  rs1  (drop r-stack.st)
+      =/  lim  (rear rs1)
+      ?>  ?=(@ lim)
+      =/  new-idx  (inc:ua ^-(@ idx))
+      ?:  (gte:ua new-idx ^-(@ lim))
+        $(ip +(ip), st st(r-stack (drop rs1)))
+      $(ip (ip-advance ip offset.tok), st st(r-stack (push rs1 new-idx)))
+    %ploop
+      ::  Step by n (popped from d-stack); exit if new-index >= limit, else loop
+      =/  ds   d-stack.st
+      =^  step=@  ds  (pop ds)
+      =/  idx  (rear r-stack.st)
+      ?>  ?=(@ idx)
+      =/  rs1  (drop r-stack.st)
+      =/  lim  (rear rs1)
+      ?>  ?=(@ lim)
+      =/  new-idx  (add:ua ^-(@ idx) step)
+      ?:  (gte:ua new-idx ^-(@ lim))
+        $(ip +(ip), st st(d-stack ds, r-stack (drop rs1)))
+      $(ip (ip-advance ip offset.tok), st st(d-stack ds, r-stack (push rs1 new-idx)))
   ==
 :: Tier 1: Unsigned Arithmetic
 ++  ua
@@ -924,6 +975,29 @@
     =/  out2  (weld out ~[[%branch offset=off-back]])
     =/  off-exit=@s  (sun:si (sub:ua (lent out2) (inc:ua ix-while)))
     $(words rest, out (patch-prog out2 ix-while [%zbranch offset=off-exit]), cs t.cs2)
+  ::  DO: emit %do token, push ['DO' ix-do] onto compile stack
+  ?:  =(wu 'DO')
+    =/  ix  (lent out)
+    $(words rest, out (weld out ~[[%do ~]]), cs [['DO' ix] cs])
+  ::  LOOP: backpatch backward branch to first body token (ix-do+1)
+  ?:  =(wu 'LOOP')
+    ?>  ?&(?=(^ cs) =('DO' tag.i.cs))
+    =/  ix-do    ix.i.cs
+    =/  ix-loop  (lent out)
+    =/  off=@s   (dif:si (sun:si (inc:ua ix-do)) (sun:si (inc:ua ix-loop)))
+    $(words rest, out (weld out ~[[%loop offset=off]]), cs t.cs)
+  ::  +LOOP: same as LOOP but %ploop token
+  ?:  =(wu '+LOOP')
+    ?>  ?&(?=(^ cs) =('DO' tag.i.cs))
+    =/  ix-do    ix.i.cs
+    =/  ix-loop  (lent out)
+    =/  off=@s   (dif:si (sun:si (inc:ua ix-do)) (sun:si (inc:ua ix-loop)))
+    $(words rest, out (weld out ~[[%ploop offset=off]]), cs t.cs)
+  ::  LEAVE I J UNLOOP: emit as %word tokens (handled in run-word)
+  ?:  =(wu 'LEAVE')   $(words rest, out (weld out ~[[%word w='LEAVE']]))
+  ?:  =(wu 'I')       $(words rest, out (weld out ~[[%word w='I']]))
+  ?:  =(wu 'J')       $(words rest, out (weld out ~[[%word w='J']]))
+  ?:  =(wu 'UNLOOP')  $(words rest, out (weld out ~[[%word w='UNLOOP']]))
   ::  Try as number literal
   =/  mn  (parse-num w)
   ?^  mn  $(words rest, out (weld out ~[[%num n=u.mn]]))

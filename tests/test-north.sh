@@ -460,6 +460,47 @@ check "parse+eval line-comment eval" \
   "~[5]"
 
 echo ""
+echo "=== Tier 11: DO/LOOP Tokenization ==="
+
+# 5 0 DO I LOOP → [num 5][num 0][do][word I][loop offset=-2]
+# ix-do=2, ix-loop=4; off=dif:si(sun:si 3)(sun:si 5)=dif:si 6 10=-2 → atom 3
+check "parse do/loop tok" "(parse \"5 0 DO I LOOP\")" \
+  "~[[%num n=5] [%num n=0] [%do ~] [%word w='I'] [%loop offset=-2]]"
+
+# 5 0 DO I 2 +LOOP → [num 5][num 0][do][word I][num 2][ploop offset=-3]
+# ix-do=2, ix-loop=5; off=dif:si(sun:si 3)(sun:si 6)=dif:si 6 12=-3 → atom 5
+check "parse do/+loop tok" "(parse \"5 0 DO I 2 +LOOP\")" \
+  "~[[%num n=5] [%num n=0] [%do ~] [%word w='I'] [%num n=2] [%ploop offset=-3]]"
+
+echo ""
+echo "=== Tier 11: DO/LOOP Round-trips ==="
+
+# Basic DO/LOOP: 5 0 DO I LOOP → pushes 0..4
+check "do/loop 0-4"     "d-stack:(eval (parse \"5 0 DO I LOOP\") *north)"          "~[0 1 2 3 4]"
+
+# +LOOP stepping by 2: 10 0 DO I 2 +LOOP → pushes 0,2,4,6,8
+check "do/+loop step2"  "d-stack:(eval (parse \"10 0 DO I 2 +LOOP\") *north)"      "~[0 2 4 6 8]"
+
+# DO/LOOP with word definition: : sum5  0 5 0 DO + LOOP ;  5 dup dup dup dup sum5
+check "do/loop in word"   "d-stack:(eval (parse \": count5  5 0 DO I LOOP ; count5\") *north)" "~[0 1 2 3 4]"
+
+# Nested DO loops: I = inner index, J = outer index
+# 2 0 DO 2 0 DO I J + LOOP LOOP → [0+0 1+0 0+1 1+1] = [0 1 1 2]
+check "nested do I J"   "d-stack:(eval (parse \"2 0 DO 2 0 DO I J + LOOP LOOP\") *north)"  "~[0 1 1 2]"
+
+# LEAVE: exit loop early when I=2
+# 5 0 DO I DUP 2 = IF LEAVE THEN LOOP → pushes 0,1,2
+check "leave"           "d-stack:(eval (parse \"5 0 DO I DUP 2 = IF LEAVE THEN LOOP\") *north)" "~[0 1 2]"
+
+# DO/LOOP with accumulation: sum 1..5 using loop and +
+# 0 6 1 DO I + LOOP → 0+1+2+3+4+5 = 15
+check "do/loop sum"     "d-stack:(eval (parse \"0 6 1 DO I + LOOP\") *north)"       "~[15]"
+
+# DO/LOOP body that uses data stack (push limit-I each iter)
+# 4 0 DO 4 I - LOOP → 4-0=4, 4-1=3, 4-2=2, 4-3=1
+check "do/loop 4-I"     "d-stack:(eval (parse \"4 0 DO 4 I - LOOP\") *north)"       "~[4 3 2 1]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
