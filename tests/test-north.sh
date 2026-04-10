@@ -282,6 +282,77 @@ check "parse+eval ifelse" "d-stack:(eval (parse \"5 3 > IF 1 ELSE 2 THEN\") *nor
 check "parse+eval case"   "d-stack:(eval (parse \"DUP 5\") *north)"          "~[5]"
 
 echo ""
+echo "=== Tier 10: Extended Stack ==="
+
+check "2dup"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='2dup']] *north)"            "~[1 2 1 2]"
+check "2drop"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='2drop']] *north)"           "~"
+check "2swap"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2swap']] *north)" "~[3 4 1 2]"
+check "2over"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2over']] *north)" "~[1 2 3 4 1 2]"
+check "nip"        "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='nip']] *north)"             "~[2]"
+check "tuck"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='tuck']] *north)"            "~[2 1 2]"
+check "?dup 0"     "d-stack:(eval ~[[%num n=0] [%word w='?dup']] *north)"                       "~[0]"
+check "?dup nonz"  "d-stack:(eval ~[[%num n=5] [%word w='?dup']] *north)"                       "~[5 5]"
+check "pick 0"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=0] [%word w='pick']] *north)" "~[10 20 30 30]"
+check "pick 2"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=2] [%word w='pick']] *north)" "~[10 20 30 10]"
+check "roll 0"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=0] [%word w='roll']] *north)" "~[1 2 3]"
+check "roll 2"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=2] [%word w='roll']] *north)" "~[2 3 1]"
+
+echo ""
+echo "=== Tier 10: Arithmetic ==="
+
+check "negate"     "d-stack:(eval ~[[%num n=4] [%word w='negate']] *north)"                     "~[3]"
+check "negate neg" "d-stack:(eval ~[[%num n=3] [%word w='negate']] *north)"                     "~[4]"
+check "neg+neg"    "d-stack:(eval ~[[%num n=7] [%word w='negate'] [%word w='negate']] *north)"  "~[7]"
+check "abs pos"    "d-stack:(eval ~[[%num n=4] [%word w='abs']] *north)"                        "~[4]"
+check "abs neg"    "d-stack:(eval ~[[%num n=3] [%word w='abs']] *north)"                        "~[4]"
+check "abs zero"   "d-stack:(eval ~[[%num n=0] [%word w='abs']] *north)"                        "~[0]"
+check "min"        "d-stack:(eval ~[[%num n=3] [%num n=7] [%word w='min']] *north)"             "~[3]"
+check "max"        "d-stack:(eval ~[[%num n=3] [%num n=7] [%word w='max']] *north)"             "~[7]"
+check "2*"         "d-stack:(eval ~[[%num n=5] [%word w='2*']] *north)"                         "~[10]"
+check "2/"         "d-stack:(eval ~[[%num n=10] [%word w='2/']] *north)"                        "~[5]"
+check "lshift"     "d-stack:(eval ~[[%num n=1] [%num n=3] [%word w='lshift']] *north)"          "~[8]"
+check "rshift"     "d-stack:(eval ~[[%num n=8] [%num n=3] [%word w='rshift']] *north)"          "~[1]"
+
+echo ""
+echo "=== Tier 10: Comparison and Logical ==="
+
+# 0< tests: odd atoms are ZigZag-negative
+check "0< neg"     "d-stack:(eval ~[[%num n=3] [%word w='0<']] *north)"                         "~[$T]"
+check "0< pos"     "d-stack:(eval ~[[%num n=4] [%word w='0<']] *north)"                         "~[$F]"
+check "0< zero"    "d-stack:(eval ~[[%num n=0] [%word w='0<']] *north)"                         "~[$F]"
+# 0> tests: even nonzero atoms are ZigZag-positive
+check "0> pos"     "d-stack:(eval ~[[%num n=4] [%word w='0>']] *north)"                         "~[$T]"
+check "0> neg"     "d-stack:(eval ~[[%num n=3] [%word w='0>']] *north)"                         "~[$F]"
+check "0> zero"    "d-stack:(eval ~[[%num n=0] [%word w='0>']] *north)"                         "~[$F]"
+check "<> true"    "d-stack:(eval ~[[%num n=3] [%num n=5] [%word w='<>']] *north)"              "~[$T]"
+check "<> false"   "d-stack:(eval ~[[%num n=5] [%num n=5] [%word w='<>']] *north)"              "~[$F]"
+check "not true"   "d-stack:(eval ~[[%num n=0] [%word w='not']] *north)"                        "~[$T]"
+check "not false"  "d-stack:(eval ~[[%num n=1] [%word w='not']] *north)"                        "~[$F]"
+check "true"       "d-stack:(eval ~[[%word w='true']] *north)"                                  "~[$T]"
+check "false"      "d-stack:(eval ~[[%word w='false']] *north)"                                 "~[$F]"
+check "u< true"    "d-stack:(eval ~[[%num n=3] [%num n=7] [%word w='u<']] *north)"              "~[$T]"
+check "u< false"   "d-stack:(eval ~[[%num n=7] [%num n=3] [%word w='u<']] *north)"              "~[$F]"
+check "u> true"    "d-stack:(eval ~[[%num n=7] [%num n=3] [%word w='u>']] *north)"              "~[$T]"
+check "u> false"   "d-stack:(eval ~[[%num n=3] [%num n=7] [%word w='u>']] *north)"              "~[$F]"
+
+echo ""
+echo "=== Tier 10: Output Buffer ==="
+
+check "emit char"  "output.buffers:(eval ~[[%num n=65] [%word w='emit']] *north)"               "\"A\""
+check "space buf"  "output.buffers:(eval ~[[%word w='space']] *north)"                          "\" \""
+check "spaces buf" "(lent output.buffers:(eval ~[[%num n=3] [%word w='spaces']] *north))"          "3"
+check "emit+space" "output.buffers:(eval ~[[%num n=65] [%word w='emit'] [%word w='space'] [%num n=66] [%word w='emit']] *north)" "\"A B\""
+
+echo ""
+echo "=== Tier 10: Parse Round-trips ==="
+
+check "parse 2dup"      "d-stack:(eval (parse \"5 6 2dup\") *north)"                            "~[5 6 5 6]"
+check "parse negate"    "d-stack:(eval (parse \"4 negate negate\") *north)"                     "~[4]"
+check "parse min/max"   "d-stack:(eval (parse \"3 7 min 3 7 max\") *north)"                     "~[3 7]"
+check "parse lshift"    "d-stack:(eval (parse \"1 4 lshift\") *north)"                          "~[16]"
+check "parse true/false" "d-stack:(eval (parse \"true false\") *north)"                         "~[$T $F]"
+
+echo ""
 echo "=== Tier 9: Loop Tokenization ==="
 
 # BEGIN/AGAIN: unconditional backward branch

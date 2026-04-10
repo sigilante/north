@@ -27,6 +27,7 @@
       pad=tape
       pic-buffer=tape
       comp-buffer=prog  ::  token accumulator during : ... ; compilation
+      output=tape       ::  EMIT/CR/SPACE output accumulator
   ==
 +$  effect
   $%  [%read-line ~]
@@ -116,6 +117,22 @@
   |-
   ?:  =(0 n)  ~
   [v $(n (dec:ua n))]
+:: TAPE-REAP - make tape of n copies of char c (for SPACES)
+++  tape-reap
+  |=  [n=@ c=@t]
+  ^-  tape
+  |-
+  ?:  =(0 n)  ~
+  [c $(n (dec:ua n))]
+:: ROLL-REMOVE - delete element at snag-index idx (leftmost=0) from stack
+++  roll-remove
+  |=  [s=stak idx=@]
+  ^-  stak
+  =/  n  0
+  |-
+  ?~  s  ~
+  ?:  =(n idx)  t.s
+  [i.s $(s t.s, n +(n))]
 :: REAR - get TOS (last element)
 ++  rear
   |=  a=stak
@@ -328,6 +345,115 @@
   ::  STATE ( -- flag ) 0=interpret, forth-true=compile (standard Forth convention)
   ?:  =(w 'STATE')
     st(d-stack (push ds ?:(state.settings.st 0 forth-true)))
+  ::  Tier 10: Extended stack
+  ?:  =(w '2DUP')
+    st(d-stack (over (over ds)))
+  ?:  =(w '2DROP')
+    st(d-stack (drop (drop ds)))
+  ?:  =(w '2SWAP')
+    =^  d=@  ds  (pop ds)
+    =^  c=@  ds  (pop ds)
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push (push (push (push ds c) d) a) b))
+  ?:  =(w '2OVER')
+    =/  len  (lent ds)
+    ?>  (gte:ua len 4)
+    =/  b  (snag (sub:ua (dec:ua len) 2) ds)
+    =/  a  (snag (sub:ua (dec:ua len) 3) ds)
+    st(d-stack (push (push ds a) b))
+  ?:  =(w 'NIP')
+    =^  b=@  ds  (pop ds)
+    st(d-stack (push (drop ds) b))
+  ?:  =(w 'TUCK')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push (push (push ds b) a) b))
+  ?:  =(w '?DUP')
+    =^  n=@  ds  (pop ds)
+    ?:  =(0 n)
+      st(d-stack (push ds n))
+    st(d-stack (push (push ds n) n))
+  ?:  =(w 'PICK')
+    =^  n=@  ds  (pop ds)
+    =/  len  (lent ds)
+    ?>  (gt:ua len n)
+    st(d-stack (push ds (snag (sub:ua (dec:ua len) n) ds)))
+  ?:  =(w 'ROLL')
+    =^  n=@  ds  (pop ds)
+    ?:  =(0 n)  st(d-stack ds)
+    =/  len  (lent ds)
+    ?>  (gt:ua len n)
+    =/  idx  (sub:ua (dec:ua len) n)
+    st(d-stack (push (roll-remove ds idx) (snag idx ds)))
+  ::  Tier 10: Arithmetic
+  ?:  =(w 'NEGATE')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (negate:zz a)))
+  ?:  =(w 'ABS')
+    =^  a=@  ds  (pop ds)
+    =/  [s=? m=@]  (decode:zz a)
+    st(d-stack (push ds (encode:zz %.y m)))
+  ?:  =(w 'MIN')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((lt:ua a b) a b)))
+  ?:  =(w 'MAX')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((gt:ua a b) a b)))
+  ?:  =(w '2*')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (mul:ua 2 a)))
+  ?:  =(w '2/')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds (div:ua a 2)))
+  ?:  =(w 'LSHIFT')
+    =^  u=@  ds  (pop ds)
+    =^  n=@  ds  (pop ds)
+    st(d-stack (push ds (mul:ua n (bex:ua u))))
+  ?:  =(w 'RSHIFT')
+    =^  u=@  ds  (pop ds)
+    =^  n=@  ds  (pop ds)
+    st(d-stack (push ds (div:ua n (bex:ua u))))
+  ::  Tier 10: Comparison and logical
+  ?:  =(w '0<')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((zlt:zz a) forth-true 0)))
+  ?:  =(w '0>')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:(?&(!=(0 a) (even:ua a)) forth-true 0)))
+  ?:  =(w '<>')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((eq:ua a b) 0 forth-true)))
+  ?:  =(w 'NOT')
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((zeq:ua a) forth-true 0)))
+  ?:  =(w 'TRUE')
+    st(d-stack (push ds forth-true))
+  ?:  =(w 'FALSE')
+    st(d-stack (push ds 0))
+  ?:  =(w 'U<')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((lt:ua a b) forth-true 0)))
+  ?:  =(w 'U>')
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((gt:ua a b) forth-true 0)))
+  ::  Tier 10: Output buffer
+  ?:  =(w 'EMIT')
+    =^  c=@  ds  (pop ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st ~[^-(@t c)])))
+  ?:  =(w 'CR')
+    ::  newline char: @ud 10 → @ → @t via double-cast (aura nesting rule)
+    st(buffers buffers.st(output (weld output.buffers.st ~[^-(@t ^-(@ 10))])))
+  ?:  =(w 'SPACE')
+    st(buffers buffers.st(output (weld output.buffers.st ~[' '])))
+  ?:  =(w 'SPACES')
+    =^  n=@  ds  (pop ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (tape-reap n ' '))))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
