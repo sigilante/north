@@ -511,6 +511,16 @@
     ::  Clean up loop params from r-stack without exiting the word
     ?>  (gte:ua (lent rs) 2)
     st(r-stack (drop (drop rs)))
+  ::  Tier 14: Metaprogramming — [ ] LITERAL
+  ?:  =(w '[')
+    ::  [ in interpret mode is a no-op (already interpreting)
+    st
+  ?:  =(w ']')
+    ::  ] switches back to compile mode
+    st(settings settings.st(state %.n))
+  ?:  =(w 'LITERAL')
+    ::  LITERAL in interpret mode is a no-op (value already on stack)
+    st
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
@@ -532,6 +542,14 @@
         =/  body  comp-buffer.buffers.st
         =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def ''), buffers buffers.st(comp-buffer ~))
         $(ip +(ip), st st2)
+      ::  '[' is immediate: switch to interpret mode mid-definition
+      ?:  =(w.tok '[')
+        $(ip +(ip), st st(settings settings.st(state %.y)))
+      ::  LITERAL: pop TOS and emit as number literal into comp-buffer
+      ?:  =(w.tok 'LITERAL')
+        =/  ds  d-stack.st
+        =^  val=@  ds  (pop ds)
+        $(ip +(ip), st st(d-stack ds, comp-buffer.buffers (weld comp-buffer.buffers.st ~[[%num n=val]])))
       ::  RECURSE: emit a call to the word currently being defined
       ?:  =(w.tok 'RECURSE')
         =/  self  current-def.settings.st
