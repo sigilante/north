@@ -663,6 +663,11 @@ check "throw 0 noop" \
   "d-stack:(eval (parse \"5 0 THROW\") *north)" \
   "~[5]"
 
+# THROW 0 does not set throw-val (negative: no-op must not pollute throw-val)
+check "throw 0 no throw-val" \
+  "throw-val.settings:(eval (parse \"0 THROW\") *north)" \
+  "0"
+
 # THROW k sets throw-val; d-stack is empty after popping k
 check "throw sets val" \
   "throw-val.settings:(eval (parse \"42 THROW\") *north)" \
@@ -713,6 +718,23 @@ check "nested catch inner handles" \
 check "catch in loop" \
   "d-stack:(eval (parse \": T 1 THROW ; 0 3 0 DO ' T CATCH + LOOP\") *north)" \
   "~[3]"
+
+# CATCH restores r-stack on throw: word pushes to r-stack then throws before cleaning up.
+# 5 >R pushes 5 to r-stack; DIRTY pushes 7 to r-stack then throws 99;
+# CATCH restores r-stack to [5]; R> pops 5.  Without restore, R> would pop 7.
+check "catch restores r-stack" \
+  "d-stack:(eval (parse \": DIRTY 7 >R 99 THROW ; 5 >R ' DIRTY CATCH R>\") *north)" \
+  "~[99 5]"
+
+# Re-throw: inner CATCH catches 42 and re-throws; outer CATCH catches it
+check "rethrow" \
+  "d-stack:(eval (parse \": THROWER 42 THROW ; : RETHROW ' THROWER CATCH THROW ; ' RETHROW CATCH\") *north)" \
+  "~[42]"
+
+# THROW 0 inside xt is a no-op; CATCH sees no throw and pushes 0
+check "catch throw 0 in xt" \
+  "d-stack:(eval (parse \": SAFE 5 0 THROW DROP ; ' SAFE CATCH\") *north)" \
+  "~[0]"
 
 echo ""
 echo "=== Results ==="
