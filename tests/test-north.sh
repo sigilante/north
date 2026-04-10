@@ -156,6 +156,30 @@ check "cell+"        "d-stack:(eval ~[[%num n=3] [%word w='cell+']] *north)"    
 check "allot-then-," "mem:(eval ~[[%num n=3] [%word w='allot'] [%num n=99] [%num n=1] [%word w='!']] *north)"                         "~[0 99 0]"
 
 echo ""
+echo "=== Tier 7: Interpreter Core ==="
+
+# State with 'sq' defined as DUP *
+SQ_D="~[['sq' ~[[%word w='dup'] [%word w='*']]]]"
+SQ_S="=+(st=*north =+(st=st(dict $SQ_D)"
+SQ_E="))"
+
+# %tick pushes xt (cord) without executing; then EXECUTE runs it
+check "tick+execute prim"  "d-stack:(eval ~[[%num n=5] [%tick w='dup'] [%word w='execute']] *north)"             "~[5 5]"
+check "tick+execute arith" "d-stack:(eval ~[[%num n=6] [%num n=7] [%tick w='+'] [%word w='execute']] *north)"   "~[13]"
+
+# User-defined word dispatched via dict lookup in run-word
+check "user word call"     "$SQ_S d-stack:(eval ~[[%num n=4] [%word w='sq']] st)$SQ_E"                          "~[16]"
+# User word composed with itself
+check "user word compose"  "$SQ_S d-stack:(eval ~[[%num n=3] [%word w='sq'] [%word w='sq']] st)$SQ_E"          "~[81]"
+# tick + execute on user word
+check "tick+execute user"  "$SQ_S d-stack:(eval ~[[%num n=5] [%tick w='sq'] [%word w='execute']] st)$SQ_E"     "~[25]"
+
+# FIND: flag is TOS; forth-true if in dict, 0 if not
+# Use (rear ...) to extract just the flag
+check "find known"    "$SQ_S (rear d-stack:(eval ~[[%num n='sq'] [%word w='find']] st))$SQ_E"   "$T"
+check "find unknown"  "(rear d-stack:(eval ~[[%num n='unk'] [%word w='find']] *north))"          "$F"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
