@@ -48,7 +48,7 @@
 ++  command-parser
   |=  =sole-id:shoe
   ^+  |~(nail *(like [? command]))
-  (stag & (star prn))
+  (stag | (star prn))
 ::
 ++  tab-list  tab-list:des
 ::

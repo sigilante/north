@@ -181,9 +181,9 @@ check "user word compose"  "$SQ_S d-stack:(eval ~[[%num n=3] [%word w='sq'] [%wo
 # tick + execute on user word
 check "tick+execute user"  "$SQ_S d-stack:(eval ~[[%num n=5] [%tick w='sq'] [%word w='execute']] st)$SQ_E"     "~[25]"
 
-# FIND: flag is TOS; forth-true if in dict, 0 if not
+# FIND: flag is TOS; 1=found normal, forth-true=found immediate, 0=not found
 # Use (rear ...) to extract just the flag
-check "find known"    "$SQ_S (rear d-stack:(eval ~[[%num n='sq'] [%word w='find']] st))$SQ_E"   "$T"
+check "find known"    "$SQ_S (rear d-stack:(eval ~[[%num n='sq'] [%word w='find']] st))$SQ_E"   "1"
 check "find unknown"  "(rear d-stack:(eval ~[[%num n='unk'] [%word w='find']] *north))"          "$F"
 
 echo ""
@@ -819,6 +819,52 @@ check "case output second" \
 check "case in word" \
   "output.buffers:(eval (parse \": TEST CASE 1 OF .\\\" A\\\" ENDOF 2 OF .\\\" B\\\" ENDOF ENDCASE ; 2 TEST\") *north)" \
   "\"B\""
+
+echo ""
+echo "=== Tier 19: WORD, BL, COUNT ==="
+
+# BL pushes ASCII 32 (space)
+check "BL" \
+  "d-stack:(eval (parse \"BL\") *north)" \
+  "~[32]"
+
+# WORD with next token as string: stores counted string, pushes addr; COUNT unpacks
+check "WORD COUNT" \
+  "d-stack:(eval (parse \"BL WORD hello COUNT\") *north)" \
+  "~[1 5]"
+
+# COUNT addr points past length cell; length is 5 for "hello"
+check "WORD COUNT TYPE" \
+  "output.buffers:(eval (parse \"BL WORD hello COUNT TYPE\") *north)" \
+  "\"HELLO\""
+
+# WORD with a multi-char token
+check "WORD COUNT multi" \
+  "d-stack:(eval (parse \"BL WORD FORTH COUNT\") *north)" \
+  "~[1 5]"
+
+echo ""
+echo "=== Tier 20: IMMEDIATE ==="
+
+# IMMEDIATE marks last-defined word; FIND returns forth-true for immediate words
+check "IMMEDIATE find flag" \
+  "d-stack:(eval (parse \": MYIMM 42 ; IMMEDIATE MYIMM\") *north)" \
+  "~[42]"
+
+# Immediate word executes at compile time: its body runs during compilation of outer word
+check "IMMEDIATE compile-time exec" \
+  "d-stack:(eval (parse \": EMIT42 42 ; IMMEDIATE : TEST EMIT42 ; TEST\") *north)" \
+  "~[42]"
+
+# IMMEDIATE: word marked immediate appears in imm-words list
+check "IMMEDIATE in imm-words" \
+  "=(~ imm-words.settings:(eval (parse \": IMW 1 ; IMMEDIATE\") *north))" \
+  "%.n"
+
+# FIND returns forth-true for an immediate word: use chained eval
+check "FIND immediate flag" \
+  "=+(st=(eval (parse \": IMW 1 ; IMMEDIATE\") *north) (rear d-stack:(eval ~[[%num n='imw'] [%word w='find']] st)))" \
+  "$T"
 
 echo ""
 echo "=== Results ==="
