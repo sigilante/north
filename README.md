@@ -15,7 +15,7 @@ North runs as a Gall `%shoe` agent on an Urbit ship.  After installing the desk,
 connect to the REPL from the dojo:
 
 ```
-|link %north
+|dojo/link our %north
 ```
 
 Then type Forth expressions at the `> ` prompt:
