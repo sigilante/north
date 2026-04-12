@@ -122,6 +122,55 @@ check "nock-5 tis"  \
   "~[0]"
 
 echo ""
+echo "=== Nock eval (2) ==="
+
+# *[42 [2 [0 1] [1 [4 [0 1]]]]] = *[42 [4 [0 1]]] = 43
+# nock-2: evaluate *[a b] as new subject, *[a c] as new formula
+check "nock-2 eval"  \
+  "42 make-atom 2 make-atom 0 make-atom 1 make-atom make-cell 1 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[43]"
+
+echo ""
+echo "=== Nock if-then-else (6) ==="
+
+# *[42 [6 [1 0] [4 [0 1]] [1 99]]] = 43  (condition=0=yes -> true branch: +42)
+check "nock-6 true branch"  \
+  "42 make-atom 6 make-atom 1 make-atom 0 make-atom make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 1 make-atom 99 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[43]"
+
+# *[42 [6 [1 1] [4 [0 1]] [1 99]]] = 99  (condition=1=no -> false branch: constant 99)
+check "nock-6 false branch"  \
+  "42 make-atom 6 make-atom 1 make-atom 1 make-atom make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 1 make-atom 99 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[99]"
+
+echo ""
+echo "=== Nock compose (7) ==="
+
+# *[42 [7 [4 [0 1]] [4 [0 1]]]] = *[43 [4 [0 1]]] = 44
+# nock-7: pipeline — apply b then c
+check "nock-7 compose"  \
+  "42 make-atom 7 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[44]"
+
+echo ""
+echo "=== Nock push (8) ==="
+
+# *[42 [8 [4 [0 1]] [0 2]]] = *[[43 42] [0 2]] = 43
+# nock-8: extend subject with *[a b], then run c with [result a] as subject
+check "nock-8 push"  \
+  "42 make-atom 8 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 0 make-atom 2 make-atom make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[43]"
+
+echo ""
+echo "=== Nock invoke (9) ==="
+
+# *[0 [9 2 [1 [[4 [0 3]] 42]]]]  (invoke arm at slot 2 of core [[4 [0 3]] 42])
+# arm [4 [0 3]] increments slot-3 (payload=42) -> 43
+check "nock-9 invoke"  \
+  "0 make-atom 9 make-atom 2 make-atom 1 make-atom 4 make-atom 0 make-atom 3 make-atom make-cell make-cell 42 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[43]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
