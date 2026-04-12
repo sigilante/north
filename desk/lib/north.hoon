@@ -155,52 +155,41 @@
 ++  push
   |=  [s=stak a=*]
   ^-  stak
-  (weld s ~[a])
+  [a s]
 :: DUP ( s -- s' )  Duplicate TOS
 ++  dup
   |=  s=stak
   ^-  stak
   ?~  s  s
-  (push s (rear s))
+  [i.s s]
 :: DROP ( s -- s' )  Remove TOS
 ++  drop
   |=  s=stak
   ^-  stak
   ?~  s  ~
-  ?:  =(~ t.s)  ~
-  [i.s $(s t.s)]
+  t.s
 :: SWAP ( s -- s' )  ( a b -- b a )
 ++  swap
   |=  s=stak
   ^-  stak
-  ?:  (lt:ua (lent s) 2)  s
-  =/  ult  (rear s)
-  =/  s1   (drop s)
-  =/  pen  (rear s1)
-  =/  s2   (drop s1)
-  (push (push s2 ult) pen)
+  ?~  s  s
+  ?~  t.s  s
+  [i.t.s [i.s t.t.s]]
 :: OVER ( s -- s' )  ( a b -- a b a )
 ++  over
   |=  s=stak
   ^-  stak
-  ?:  (lt:ua (lent s) 2)  s
-  =/  ult  (rear s)
-  =/  s1   (drop s)
-  =/  pen  (rear s1)
-  =/  s2   (drop s1)
-  (push (push (push s2 pen) ult) pen)
-:: ROT ( s -- s' )  ( a b c -- b c a )
+  ?~  s  s
+  ?~  t.s  s
+  [i.t.s s]
+:: ROT ( s -- s' )  ( a b c -- b c a )  c=TOS; result: a is new TOS
 ++  rot
   |=  s=stak
   ^-  stak
-  ?:  (lt:ua (lent s) 3)  s
-  =/  c    (rear s)
-  =/  s1   (drop s)
-  =/  b    (rear s1)
-  =/  s2   (drop s1)
-  =/  a    (rear s2)
-  =/  s3   (drop s2)
-  (push (push (push s3 b) c) a)
+  ?~  s  s
+  ?~  t.s  s
+  ?~  t.t.s  s
+  [i.t.t.s [i.s [i.t.s t.t.t.s]]]
 :: FORTH-TRUE - max direct atom in Vere64 (2^63-1); avoids indirect atom heap lookup
 ++  forth-true  0x7fff.ffff.ffff.ffff
 :: POP - remove TOS, assert atom, return [atom new-stack]
@@ -208,9 +197,8 @@
   |=  s=stak
   ^-  [@ stak]
   ?>  ?=(^ s)
-  =/  v  (rear s)
-  ?>  ?=(@ v)
-  [v (drop s)]
+  ?>  ?=(@ i.s)
+  [i.s t.s]
 :: FIND-DICT - look up a word in the user dictionary; case-insensitive
 ++  find-dict
   |=  [w=cord d=lexi]
@@ -339,15 +327,17 @@
     =^  a=@  rs  (pop rs)
     st(d-stack (push ds a), r-stack rs)
   ?:  =(w 'R@')
-    st(d-stack (push ds (rear rs)))
+    ?>  ?=(^ rs)
+    st(d-stack (push ds i.rs))
   ::  Tier 5: Memory ( addr -- x ) and ( x addr -- )
   ?:  =(w '@')
     =^  addr=@  ds  (pop ds)
     st(d-stack (push ds (fetch addr mem.st)))
   ?:  =(w '!')
     =^  addr=@  ds  (pop ds)
-    =/  val  (rear ds)
-    st(d-stack (drop ds), mem (store mem.st addr val))
+    ?>  ?=(^ ds)
+    =/  val  i.ds
+    st(d-stack t.ds, mem (store mem.st addr val))
   ?:  =(w '+!')
     =^  addr=@  ds  (pop ds)
     =^  n=@     ds  (pop ds)
@@ -361,8 +351,9 @@
     =^  n=@  ds  (pop ds)
     (allot n st(d-stack ds))
   ?:  =(w ',')
-    =/  v  (rear ds)
-    (comma v st(d-stack (drop ds)))
+    ?>  ?=(^ ds)
+    =/  v  i.ds
+    (comma v st(d-stack t.ds))
   ::  CELLS: cell size is 1, so n CELLS = n (identity)
   ?:  =(w 'CELLS')  st
   ::  CELL+: add one cell size (1) to address
@@ -399,11 +390,8 @@
     =^  a=@  ds  (pop ds)
     st(d-stack (push (push (push (push ds c) d) a) b))
   ?:  =(w '2OVER')
-    =/  len  (lent ds)
-    ?>  (gte:ua len 4)
-    =/  b  (snag (sub:ua (dec:ua len) 2) ds)
-    =/  a  (snag (sub:ua (dec:ua len) 3) ds)
-    st(d-stack (push (push ds a) b))
+    ?>  (gte:ua (lent ds) 4)
+    st(d-stack (push (push ds (snag 3 ds)) (snag 2 ds)))
   ?:  =(w 'NIP')
     =^  b=@  ds  (pop ds)
     st(d-stack (push (drop ds) b))
@@ -418,16 +406,13 @@
     st(d-stack (push (push ds n) n))
   ?:  =(w 'PICK')
     =^  n=@  ds  (pop ds)
-    =/  len  (lent ds)
-    ?>  (gt:ua len n)
-    st(d-stack (push ds (snag (sub:ua (dec:ua len) n) ds)))
+    ?>  (gt:ua (lent ds) n)
+    st(d-stack (push ds (snag n ds)))
   ?:  =(w 'ROLL')
     =^  n=@  ds  (pop ds)
     ?:  =(0 n)  st(d-stack ds)
-    =/  len  (lent ds)
-    ?>  (gt:ua len n)
-    =/  idx  (sub:ua (dec:ua len) n)
-    st(d-stack (push (roll-remove ds idx) (snag idx ds)))
+    ?>  (gt:ua (lent ds) n)
+    st(d-stack (push (roll-remove ds n) (snag n ds)))
   ::  Tier 10: Arithmetic
   ?:  =(w 'NEGATE')
     =^  a=@  ds  (pop ds)
@@ -511,17 +496,17 @@
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
   ?:  =(w 'I')
-    st(d-stack (push ds (rear rs)))
+    ?>  ?=(^ rs)
+    st(d-stack (push ds i.rs))
   ?:  =(w 'J')
-    ::  Outer loop index: TOS-2 in rightward stack
-    =/  len  (lent rs)
-    ?>  (gte:ua len 3)
-    st(d-stack (push ds (snag (sub:ua (dec:ua len) 2) rs)))
+    ::  Outer loop index: 3rd element from head (index 2) in [inner-idx inner-lim outer-idx ...]
+    ?>  (gte:ua (lent rs) 3)
+    st(d-stack (push ds (snag 2 rs)))
   ?:  =(w 'LEAVE')
     ::  Force exit: set current index = limit (LOOP will exit next iteration)
-    ?>  (gte:ua (lent rs) 2)
-    =/  lim  (rear (drop rs))
-    st(r-stack (push (drop rs) lim))
+    ?>  ?=(^ rs)
+    ?>  ?=(^ t.rs)
+    st(r-stack [i.t.rs t.rs])
   ?:  =(w 'UNLOOP')
     ::  Clean up loop params from r-stack without exiting the word
     ?>  (gte:ua (lent rs) 2)
@@ -696,27 +681,31 @@
       $(ip +(ip), st st(d-stack ds, r-stack (push (push r-stack.st lim) start)))
     %loop
       ::  Increment index; exit if new-index >= limit, else loop back
-      =/  idx  (rear r-stack.st)
+      ?>  ?=(^ r-stack.st)
+      =/  idx  i.r-stack.st
       ?>  ?=(@ idx)
-      =/  rs1  (drop r-stack.st)
-      =/  lim  (rear rs1)
+      =/  rs1  t.r-stack.st
+      ?>  ?=(^ rs1)
+      =/  lim  i.rs1
       ?>  ?=(@ lim)
       =/  new-idx  (inc:ua ^-(@ idx))
       ?:  (gte:ua new-idx ^-(@ lim))
-        $(ip +(ip), st st(r-stack (drop rs1)))
+        $(ip +(ip), st st(r-stack t.rs1))
       $(ip (ip-advance ip offset.tok), st st(r-stack (push rs1 new-idx)))
     %ploop
       ::  Step by n (popped from d-stack); exit if new-index >= limit, else loop
       =/  ds   d-stack.st
       =^  step=@  ds  (pop ds)
-      =/  idx  (rear r-stack.st)
+      ?>  ?=(^ r-stack.st)
+      =/  idx  i.r-stack.st
       ?>  ?=(@ idx)
-      =/  rs1  (drop r-stack.st)
-      =/  lim  (rear rs1)
+      =/  rs1  t.r-stack.st
+      ?>  ?=(^ rs1)
+      =/  lim  i.rs1
       ?>  ?=(@ lim)
       =/  new-idx  (add:ua ^-(@ idx) step)
       ?:  (gte:ua new-idx ^-(@ lim))
-        $(ip +(ip), st st(d-stack ds, r-stack (drop rs1)))
+        $(ip +(ip), st st(d-stack ds, r-stack t.rs1))
       $(ip (ip-advance ip offset.tok), st st(d-stack ds, r-stack (push rs1 new-idx)))
     %variable
       ::  Allocate one cell at HERE; bind name to its address
@@ -744,7 +733,8 @@
       ::  Not equal: leave selector, jump past ENDOF branch.
       =/  ds  d-stack.st
       =^  val=@  ds  (pop ds)
-      =/  sel  (rear ds)
+      ?>  ?=(^ ds)
+      =/  sel  i.ds
       ?>  ?=(@ sel)
       ?:  =(val ^-(@ sel))
         $(ip +(ip), st st(d-stack (drop ds)))
