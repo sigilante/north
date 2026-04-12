@@ -1,6 +1,6 @@
 # North Word Reference
 
-All words implemented as of Tier 17. Stack notation: `( before -- after )`.
+All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 
 ## Stack Manipulation
 
@@ -155,12 +155,26 @@ These are handled by the Gall agent before reaching the interpreter:
 | `SON` | enable stack display after each `ok` |
 | `SOFF` | disable stack display |
 
+## Text Input
+
+| Word | Stack | Description |
+|---|---|---|
+| `BL` | `( -- 32 )` | push ASCII space character |
+| `WORD` | `( delim -- c-addr )` | read next token from input; store as counted string at HERE; push address. Note: in North, reads the next compiled token from the program rather than the live input stream. |
+| `COUNT` | `( c-addr -- c-addr+1 u )` | unpack counted string: push char address and length |
+
+## Defining Word Flags
+
+| Word | Stack | Description |
+|---|---|---|
+| `IMMEDIATE` | `( -- )` | mark most recently defined word as compile-time immediate |
+
+Immediate words execute during compilation instead of being compiled into the current definition. This enables compile-time macros. `FIND` returns `forth-true` for immediate words and `1` for normal words.
+
 ## Not Yet Implemented
 
 | Word | Notes |
 |---|---|
-| `WORD` | parse next whitespace-delimited token from input (Tier 19) |
-| `IMMEDIATE` | mark most recently defined word as immediate (Tier 20) |
 | `ACCEPT` | read a line of input |
 | `KEY` | read a single character |
 | `HEX` / `DECIMAL` | change numeric base |

@@ -1,6 +1,7 @@
 :: North Core Primitives
 |%
 +$  stak  (list *)
++$  cord-list  (list cord)  ::  used for imm-words in settings-map
 +$  lexi  (list (pair cord prog))
 +$  north
   $:  %uno
@@ -21,7 +22,9 @@
       current-def=cord  ::  name being compiled; '' when not compiling
       create-name=cord  ::  name for next CREATE; '' when none pending
       last-create=cord  ::  name of most recently CREATE'd word (for DOES> patching)
+      last-def=cord     ::  name of most recently : ... ; defined word (for IMMEDIATE)
       throw-val=@       ::  0=no exception; nonzero=pending THROW value
+      imm-words=cord-list    ::  names of words marked IMMEDIATE
   ==
 +$  buffer-map
   $:  tib=tape
@@ -371,13 +374,15 @@
   ?:  =(w 'EXECUTE')
     =^  xt=cord  ds  (pop ds)
     (run-word xt st(d-stack ds))
-  ::  FIND ( cord -- cord 0 | xt forth-true ) search user dict
+  ::  FIND ( cord -- cord 0 | xt 1 | xt forth-true )
+  ::    0 = not found; 1 = found non-immediate; forth-true = found immediate
   ?:  =(w 'FIND')
     =^  name=cord  ds  (pop ds)
     =/  body  (find-dict name dict.st)
     ?~  body
       st(d-stack (push (push ds name) 0))
-    st(d-stack (push (push ds name) forth-true))
+    =/  imm  (is-immediate name imm-words.settings.st)
+    st(d-stack (push (push ds name) ?:(imm forth-true 1)))
   ::  Tier 8: Compilation
   ::  STATE ( -- flag ) 0=interpret, forth-true=compile (standard Forth convention)
   ?:  =(w 'STATE')
@@ -551,6 +556,22 @@
     ?:  =(0 k)
       st1(d-stack (push d-stack.st1 0))
     st1(d-stack (push saved-ds k), r-stack saved-rs, settings settings.st1(throw-val 0))
+  ::  Tier 19: Text input words
+  ?:  =(w 'BL')
+    ::  ( -- 32 )  push space character code
+    st(d-stack (push ds 32))
+  ?:  =(w 'COUNT')
+    ::  ( c-addr -- c-addr+1 u )  convert counted string address to (addr, len)
+    =^  addr=@  ds  (pop ds)
+    =/  len  (fetch addr mem.st)
+    ?>  ?=(@ len)
+    st(d-stack (push (push ds (inc:ua addr)) ^-(@ len)))
+  ::  Tier 20: IMMEDIATE — mark last-defined word as immediate
+  ?:  =(w 'IMMEDIATE')
+    =/  lname  last-def.settings.st
+    ?>  !=(lname '')
+    =/  wu  (crip (cuss (trip lname)))
+    st(settings settings.st(imm-words [wu imm-words.settings.st]))
   ~|([%unknown-word w] !!)
 :: EVAL - run a token program against the interpreter state (index-based)
 ++  eval
@@ -570,7 +591,7 @@
         ::  End of definition: store body in dict, return to interpret
         =/  name  current-def.settings.st
         =/  body  comp-buffer.buffers.st
-        =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def ''), buffers buffers.st(comp-buffer ~))
+        =/  st2   st(dict (dict-add name body dict.st), settings settings.st(state %.y, current-def '', last-def name), buffers buffers.st(comp-buffer ~))
         $(ip +(ip), st st2)
       ::  '[' is immediate: switch to interpret mode mid-definition
       ?:  =(w.tok '[')
@@ -584,6 +605,11 @@
       ?:  =(w.tok 'RECURSE')
         =/  self  current-def.settings.st
         $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[[%word w=self]])))
+      ::  Tier 20: IMMEDIATE word — execute now instead of compiling
+      ?:  (is-immediate w.tok imm-words.settings.st)
+        =/  st1  (run-word w.tok st)
+        ?:  !=(0 throw-val.settings.st1)  st1
+        $(ip +(ip), st st1)
       ::  Compile this word token into body
       $(ip +(ip), st st(comp-buffer.buffers (weld comp-buffer.buffers.st ~[tok])))
     ::  Compile any non-word token (num, tick, zbranch, branch) into body
@@ -593,6 +619,30 @@
     %num
       $(ip +(ip), st st(d-stack (push d-stack.st n.tok)))
     %word
+      ::  Tier 19: WORD ( delim -- c-addr ) — consume next token as a counted string
+      ::  Token-based: reads next prog token, not raw character input.
+      ::  Works in interpret mode; compiled definitions should use BL WORD at the top level.
+      ?:  =(w.tok 'WORD')
+        =/  ds   d-stack.st
+        =^  del=@  ds  (pop ds)   ::  pop delimiter (unused; token boundary is our delimiter)
+        =/  st0  st(d-stack ds)
+        ?:  (gte:ua +(ip) n)
+          ::  No next token — store empty counted string at HERE, push addr
+          =/  addr  here.settings.st0
+          =/  st1  (comma 0 st0)
+          $(ip +(ip), st st1(d-stack (push d-stack.st1 addr)))
+        =/  ntok  (snag-prog +(ip) p)
+        =/  str=tape
+          ?+  -.ntok  ~
+            %word  (trip w.ntok)
+            %num   (num-to-tape n.ntok)
+            %tick  (trip w.ntok)
+          ==
+        =/  addr  here.settings.st0
+        =/  cnt   (lent str)
+        =/  st1  (comma cnt st0)
+        =/  st2  (roll-store-chars str st1)
+        $(ip (add:ua ip 2), st st2(d-stack (push d-stack.st2 addr)))
       ::  CREATE in interpret mode: use pre-set create-name, else consume ip+1 as name
       ?:  =(w.tok 'CREATE')
         =/  cname  create-name.settings.st
@@ -950,13 +1000,17 @@
   |=  [name=cord body=prog d=lexi]
   ^-  lexi
   [[name body] d]
-:: WORD - text-layer word parser; stub pending text input
-++  word      !!
+:: IS-IMMEDIATE - check if a word name is in the immediate-words list
+++  is-immediate
+  |=  [w=cord imm=(list cord)]
+  ^-  ?
+  =/  wu  (crip (cuss (trip w)))
+  |-
+  ?~  imm  %.n
+  ?:  =(i.imm wu)  %.y
+  $(imm t.imm)
 :: Tier 8: Compilation
-:: Colon definitions are handled directly in eval via the %colon token
-:: and the ';' %word token; no separate gate arms are needed.
-:: IMMEDIATE requires dict entry flags; stub pending.
-++  immediate  !!
+:: Colon definitions and IMMEDIATE are handled in eval and run-word.
 :: FIND-WORD-BODY - like find-word but returns (unit prog) for type-safe DOES> patching
 ++  find-word-body
   |=  [w=cord d=lexi]

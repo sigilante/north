@@ -131,6 +131,7 @@ North was built tier-by-tier, each tier adding a set of words or features:
 | 14 | 16 | CATCH / THROW exception handling |
 | 15 | 17 | String literals (S" / ."), CASE/OF/ENDOF/ENDCASE |
 | 16–17 | 18 | Library flatten + Gall %shoe REPL agent |
+| 18 | 19 | `WORD`, `BL`, `COUNT` — text input words |
+| 19 | 20 | `IMMEDIATE` — compile-time word flag; `FIND` returns `1`/forth-true |
 
-**Next:** Tier 19 (`WORD` / text input), Tier 20 (`IMMEDIATE` / dict flags),
-Tier 21+ (Nock code generation).
+**Next:** Tier 21+ (Nock code generation).

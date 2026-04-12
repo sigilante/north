@@ -63,9 +63,9 @@ docs/
 - **Tiers 13–15**: output words, `[` `]` LITERAL, CREATE/DOES> defining words
 - **Tiers 16–17**: CATCH/THROW exceptions, S"/." string literals, CASE/OF/ENDOF/ENDCASE
 - **Tier 18**: Gall `%shoe` REPL agent with persistent state, SON/SOFF stack display
+- **Tier 19**: `WORD`, `BL`, `COUNT` — text input words
+- **Tier 20**: `IMMEDIATE` — compile-time word flag; FIND returns ANSI-compliant flags
 
 ## Roadmap
 
-- **Tier 19**: `WORD` — parse tokens from the input stream
-- **Tier 20**: `IMMEDIATE` — mark words as compile-time immediate
 - **Tier 21+**: Nock code generation — emit Nock nouns from Forth definitions
