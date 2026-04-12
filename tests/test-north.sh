@@ -867,6 +867,37 @@ check "FIND immediate flag" \
   "$T"
 
 echo ""
+echo "=== Tier 21: NOOP / -ROT / CELL / CHARS / [CHAR] ==="
+
+check "NOOP"         "d-stack:(eval (parse \"5 NOOP\") *north)"                          "~[5]"
+check "-ROT"         "d-stack:(eval (parse \"1 2 3 -ROT\") *north)"                      "~[2 1 3]"
+check "CELL"         "d-stack:(eval (parse \"CELL\") *north)"                            "~[1]"
+check "CHARS"        "d-stack:(eval (parse \"5 CHARS\") *north)"                         "~[5]"
+check "[CHAR] A"     "d-stack:(eval (parse \"[CHAR] A\") *north)"                        "~[65]"
+check "[CHAR] 0"     "d-stack:(eval (parse \"[CHAR] 0\") *north)"                        "~[48]"
+
+echo ""
+echo "=== Tier 21: EXIT ==="
+
+# EXIT returns from the current word immediately
+check "EXIT early"   "d-stack:(eval (parse \": f  1 EXIT 2 ;  f\") *north)"              "~[1]"
+# EXIT conditional: 0 causes EXIT, 1 falls through to 99
+check "EXIT if 0"    "d-stack:(eval (parse \": f  dup 0 = IF EXIT THEN 99 ;  0 f\") *north)" "~[0]"
+check "EXIT if 1"    "d-stack:(eval (parse \": f  dup 0 = IF EXIT THEN 99 ;  1 f\") *north)" "~[99 1]"
+
+echo ""
+echo "=== Tier 21: DEFER / IS ==="
+
+# DEFER creates a word defaulting to NOOP
+check "DEFER NOOP"   "d-stack:(eval (parse \"DEFER foo  5 foo\") *north)"                "~[5]"
+# IS redirects a deferred word to a new xt
+check "DEFER IS"     "d-stack:(eval (parse \": double 2 * ; DEFER op  ' double IS op  7 op\") *north)" "~[14]"
+# IS can redirect multiple times
+check "DEFER IS re"  "d-stack:(eval (parse \": sq dup * ; : double 2 * ; DEFER f  ' sq IS f  3 f  ' double IS f  4 f\") *north)" "~[8 9]"
+# Mutual recursion via DEFER: even?/odd? ping-pong (drop arg before returning result)
+check "DEFER mutual" "d-stack:(eval (parse \"DEFER is-even  : is-odd  dup 0 = IF drop 0 EXIT THEN 1- is-even ;  : is-even-impl  dup 0 = IF drop 1 EXIT THEN 1- is-odd ;  ' is-even-impl IS is-even  4 is-even\") *north)" "~[1]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1

@@ -57,6 +57,7 @@
       [%str-lit text=tape]   ::  S" text" — store in mem, push c-addr and count
       [%dot-str text=tape]   ::  ." text" — append directly to output buffer
       [%of-branch offset=@s] ::  OF: pop val, compare with NOS selector; equal→drop+go, else→jump
+      [%defer name=cord]     ::  DEFER: allocate xt cell, define indirect word
   ==
 +$  prog  (list token)
 :: Tier 0: Stack Manipulation
@@ -551,6 +552,11 @@
     =/  len  (fetch addr mem.st)
     ?>  ?=(@ len)
     st(d-stack (push (push ds (inc:ua addr)) ^-(@ len)))
+  ::  Tier 21: NOOP, -ROT, CHARS, CELL
+  ?:  =(w 'NOOP')    st
+  ?:  =(w '-ROT')    st(d-stack (rot (rot ds)))
+  ?:  =(w 'CHARS')   st   ::  cell size = 1, identity like CELLS
+  ?:  =(w 'CELL')    st(d-stack (push ds 1))
   ::  Tier 20: IMMEDIATE — mark last-defined word as immediate
   ?:  =(w 'IMMEDIATE')
     =/  lname  last-def.settings.st
@@ -641,6 +647,23 @@
         ?>  ?=([%word *] nxt)
         =/  addr  here.settings.st
         $(ip (add:ua ip 2), st st(dict (dict-add w.nxt ~[[%num n=addr]] dict.st), settings settings.st(last-create w.nxt)))
+      ::  Tier 21: EXIT — return from current word immediately
+      ?:  =(w.tok 'EXIT')  st
+      ::  Tier 21: IS — store xt in deferred word's data cell
+      ::  ( xt -- )  reads next token as deferred word name
+      ?:  =(w.tok 'IS')
+        ?>  (lth:ua +(ip) n)
+        =/  nxt  (snag-prog +(ip) p)
+        ?>  ?=([%word *] nxt)
+        =/  target  (crip (cuss (trip w.nxt)))
+        =/  body   (find-word-body target dict.st)
+        ?~  body  !!
+        ?>  ?=(^ u.body)
+        ?>  ?=([%num *] i.u.body)
+        =/  addr  n.i.u.body
+        =/  ds    d-stack.st
+        =^  xt=@  ds  (pop ds)
+        $(ip (add:ua ip 2), st st(d-stack ds, mem (store mem.st addr xt)))
       ::  User-defined defining word (has %does-gt in body): consume next token as name-to-create
       ?:  (is-defining-word w.tok dict.st)
         ?:  (gte:ua (inc:ua ip) n)
@@ -717,6 +740,13 @@
       =/  ds  d-stack.st
       =^  val=@  ds  (pop ds)
       $(ip +(ip), st st(d-stack ds, dict (dict-add name.tok ~[[%num n=val]] dict.st)))
+    %defer
+      ::  Allocate one cell at HERE; store default xt 'NOOP'; define indirect word
+      ::  The defined word's body: [push data-addr] [@ ] [EXECUTE]
+      =/  addr  here.settings.st
+      =/  st1   (comma 'NOOP' st)
+      =/  body  ~[[%num n=addr] [%word w='@'] [%word w='EXECUTE']]
+      $(ip +(ip), st st1(dict (dict-add name.tok body dict.st1)))
     %does-gt
       ::  Append tokens after DOES> to the last-created word's body.
       ::  Jumps to end of the current program (exits the defining word's eval).
@@ -1190,6 +1220,15 @@
   ?:  =(wu 'CONSTANT')
     ?~  rest  out
     $(words t.rest, out (weld out ~[[%constant name=(crip (cuss i.rest))]]))
+  ::  DEFER: next token is name; allocates xt cell, defines indirect word
+  ?:  =(wu 'DEFER')
+    ?~  rest  out
+    $(words t.rest, out (weld out ~[[%defer name=(crip (cuss i.rest))]]))
+  ::  [CHAR]: next token is a word; push ASCII value of its first character
+  ?:  =(wu '[CHAR]')
+    ?~  rest  out
+    ?>  ?=(^ i.rest)
+    $(words t.rest, out (weld out ~[[%num n=^-(@ i.i.rest)]]))
   ::  Tick: push xt without executing
   ?:  =(wu '\'')
     ?~  rest  out
