@@ -42,11 +42,11 @@ echo "=== Tier 0: Stack Ops ==="
 
 check "dup"        "d-stack:(eval ~[[%num n=5] [%word w='dup']] *north)"              "~[5 5]"
 check "drop"       "d-stack:(eval ~[[%num n=5] [%num n=3] [%word w='drop']] *north)" "~[5]"
-check "swap"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='swap']] *north)" "~[2 1]"
+check "swap"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='swap']] *north)" "~[1 2]"
 check "over"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='over']] *north)" "~[1 2 1]"
-check "rot"        "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%word w='rot']] *north)" "~[2 3 1]"
+check "rot"        "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%word w='rot']] *north)" "~[1 3 2]"
 check "depth-0"    "d-stack:(eval ~[[%word w='depth']] *north)"                      "~[0]"
-check "depth-2"    "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='depth']] *north)" "~[1 2 2]"
+check "depth-2"    "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='depth']] *north)" "~[2 2 1]"
 
 echo ""
 echo "=== Tier 1: Unsigned Arithmetic ==="
@@ -56,7 +56,7 @@ check "sub"        "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='-']] *north
 check "mul"        "d-stack:(eval ~[[%num n=25] [%num n=10] [%word w='*']] *north)" "~[250]"
 check "div"        "d-stack:(eval ~[[%num n=10] [%num n=2] [%word w='/']] *north)"  "~[5]"
 check "mod"        "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='mod']] *north)" "~[1]"
-check "/mod"       "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='/mod']] *north)" "~[1 3]"
+check "/mod"       "d-stack:(eval ~[[%num n=10] [%num n=3] [%word w='/mod']] *north)" "~[3 1]"
 check "1+"         "d-stack:(eval ~[[%num n=4] [%word w='1+']] *north)"             "~[5]"
 check "1-"         "d-stack:(eval ~[[%num n=4] [%word w='1-']] *north)"             "~[3]"
 check "compound"   "d-stack:(eval ~[[%num n=25] [%num n=10] [%word w='*'] [%num n=50] [%word w='+']] *north)" "~[300]"
@@ -112,7 +112,7 @@ check "r@ d-stack"  "d-stack:(eval ~[[%num n=7] [%word w='>r'] [%word w='r@']] *
 check "r@ r-stack"  "r-stack:(eval ~[[%num n=7] [%word w='>r'] [%word w='r@']] *north)"   "~[7]"
 # stacking: push two values, retrieve in LIFO order
 # LIFO: 1 pushed first, 2 on top; >R >R reverses onto r-stack; R> R> restores original order
-check ">r/>r/r>/r>" "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='>r'] [%word w='>r'] [%word w='r>'] [%word w='r>']] *north)" "~[1 2]"
+check ">r/>r/r>/r>" "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='>r'] [%word w='>r'] [%word w='r>'] [%word w='r>']] *north)" "~[2 1]"
 
 echo ""
 echo "=== Tier 5: Memory ==="
@@ -183,8 +183,8 @@ check "tick+execute user"  "$SQ_S d-stack:(eval ~[[%num n=5] [%tick w='sq'] [%wo
 
 # FIND: flag is TOS; 1=found normal, forth-true=found immediate, 0=not found
 # Use (rear ...) to extract just the flag
-check "find known"    "$SQ_S (rear d-stack:(eval ~[[%num n='sq'] [%word w='find']] st))$SQ_E"   "1"
-check "find unknown"  "(rear d-stack:(eval ~[[%num n='unk'] [%word w='find']] *north))"          "$F"
+check "find known"    "$SQ_S (snag 0 d-stack:(eval ~[[%num n='sq'] [%word w='find']] st))$SQ_E"   "1"
+check "find unknown"  "(snag 0 d-stack:(eval ~[[%num n='unk'] [%word w='find']] *north))"          "$F"
 
 echo ""
 echo "=== Tier 8: Compilation ==="
@@ -284,18 +284,18 @@ check "parse+eval case"   "d-stack:(eval (parse \"DUP 5\") *north)"          "~[
 echo ""
 echo "=== Tier 10: Extended Stack ==="
 
-check "2dup"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='2dup']] *north)"            "~[1 2 1 2]"
+check "2dup"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='2dup']] *north)"            "~[2 1 2 1]"
 check "2drop"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='2drop']] *north)"           "~"
-check "2swap"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2swap']] *north)" "~[3 4 1 2]"
-check "2over"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2over']] *north)" "~[1 2 3 4 1 2]"
+check "2swap"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2swap']] *north)" "~[2 1 4 3]"
+check "2over"      "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=4] [%word w='2over']] *north)" "~[2 1 4 3 2 1]"
 check "nip"        "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='nip']] *north)"             "~[2]"
 check "tuck"       "d-stack:(eval ~[[%num n=1] [%num n=2] [%word w='tuck']] *north)"            "~[2 1 2]"
 check "?dup 0"     "d-stack:(eval ~[[%num n=0] [%word w='?dup']] *north)"                       "~[0]"
 check "?dup nonz"  "d-stack:(eval ~[[%num n=5] [%word w='?dup']] *north)"                       "~[5 5]"
-check "pick 0"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=0] [%word w='pick']] *north)" "~[10 20 30 30]"
-check "pick 2"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=2] [%word w='pick']] *north)" "~[10 20 30 10]"
-check "roll 0"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=0] [%word w='roll']] *north)" "~[1 2 3]"
-check "roll 2"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=2] [%word w='roll']] *north)" "~[2 3 1]"
+check "pick 0"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=0] [%word w='pick']] *north)" "~[30 30 20 10]"
+check "pick 2"     "d-stack:(eval ~[[%num n=10] [%num n=20] [%num n=30] [%num n=2] [%word w='pick']] *north)" "~[10 30 20 10]"
+check "roll 0"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=0] [%word w='roll']] *north)" "~[3 2 1]"
+check "roll 2"     "d-stack:(eval ~[[%num n=1] [%num n=2] [%num n=3] [%num n=2] [%word w='roll']] *north)" "~[1 3 2]"
 
 echo ""
 echo "=== Tier 10: Arithmetic ==="
@@ -346,11 +346,11 @@ check "emit+space" "output.buffers:(eval ~[[%num n=65] [%word w='emit'] [%word w
 echo ""
 echo "=== Tier 10: Parse Round-trips ==="
 
-check "parse 2dup"      "d-stack:(eval (parse \"5 6 2dup\") *north)"                            "~[5 6 5 6]"
+check "parse 2dup"      "d-stack:(eval (parse \"5 6 2dup\") *north)"                            "~[6 5 6 5]"
 check "parse negate"    "d-stack:(eval (parse \"4 negate negate\") *north)"                     "~[4]"
-check "parse min/max"   "d-stack:(eval (parse \"3 7 min 3 7 max\") *north)"                     "~[3 7]"
+check "parse min/max"   "d-stack:(eval (parse \"3 7 min 3 7 max\") *north)"                     "~[7 3]"
 check "parse lshift"    "d-stack:(eval (parse \"1 4 lshift\") *north)"                          "~[16]"
-check "parse true/false" "d-stack:(eval (parse \"true false\") *north)"                         "~[$T $F]"
+check "parse true/false" "d-stack:(eval (parse \"true false\") *north)"                         "~[$F $T]"
 
 echo ""
 echo "=== Tier 12: VARIABLE ==="
@@ -368,7 +368,7 @@ check "variable store/fetch" "d-stack:(eval (parse \"variable x  42 x !  x @\") 
 # Variable mem reflects stored value
 check "variable mem"         "mem:(eval (parse \"variable x  99 x !\") *north)"           "~[99]"
 # Two variables independent
-check "variable two vars"    "d-stack:(eval (parse \"variable x  variable y  10 x !  20 y !  x @ y @\") *north)" "~[10 20]"
+check "variable two vars"    "d-stack:(eval (parse \"variable x  variable y  10 x !  20 y !  x @ y @\") *north)" "~[20 10]"
 
 echo ""
 echo "=== Tier 12: CONSTANT ==="
@@ -578,21 +578,21 @@ echo ""
 echo "=== Tier 11: DO/LOOP Round-trips ==="
 
 # Basic DO/LOOP: 5 0 DO I LOOP → pushes 0..4
-check "do/loop 0-4"     "d-stack:(eval (parse \"5 0 DO I LOOP\") *north)"          "~[0 1 2 3 4]"
+check "do/loop 0-4"     "d-stack:(eval (parse \"5 0 DO I LOOP\") *north)"          "~[4 3 2 1 0]"
 
 # +LOOP stepping by 2: 10 0 DO I 2 +LOOP → pushes 0,2,4,6,8
-check "do/+loop step2"  "d-stack:(eval (parse \"10 0 DO I 2 +LOOP\") *north)"      "~[0 2 4 6 8]"
+check "do/+loop step2"  "d-stack:(eval (parse \"10 0 DO I 2 +LOOP\") *north)"      "~[8 6 4 2 0]"
 
 # DO/LOOP with word definition: : sum5  0 5 0 DO + LOOP ;  5 dup dup dup dup sum5
-check "do/loop in word"   "d-stack:(eval (parse \": count5  5 0 DO I LOOP ; count5\") *north)" "~[0 1 2 3 4]"
+check "do/loop in word"   "d-stack:(eval (parse \": count5  5 0 DO I LOOP ; count5\") *north)" "~[4 3 2 1 0]"
 
 # Nested DO loops: I = inner index, J = outer index
 # 2 0 DO 2 0 DO I J + LOOP LOOP → [0+0 1+0 0+1 1+1] = [0 1 1 2]
-check "nested do I J"   "d-stack:(eval (parse \"2 0 DO 2 0 DO I J + LOOP LOOP\") *north)"  "~[0 1 1 2]"
+check "nested do I J"   "d-stack:(eval (parse \"2 0 DO 2 0 DO I J + LOOP LOOP\") *north)"  "~[2 1 1 0]"
 
 # LEAVE: exit loop early when I=2
 # 5 0 DO I DUP 2 = IF LEAVE THEN LOOP → pushes 0,1,2
-check "leave"           "d-stack:(eval (parse \"5 0 DO I DUP 2 = IF LEAVE THEN LOOP\") *north)" "~[0 1 2]"
+check "leave"           "d-stack:(eval (parse \"5 0 DO I DUP 2 = IF LEAVE THEN LOOP\") *north)" "~[2 1 0]"
 
 # DO/LOOP with accumulation: sum 1..5 using loop and +
 # 0 6 1 DO I + LOOP → 0+1+2+3+4+5 = 15
@@ -600,7 +600,7 @@ check "do/loop sum"     "d-stack:(eval (parse \"0 6 1 DO I + LOOP\") *north)"   
 
 # DO/LOOP body that uses data stack (push limit-I each iter)
 # 4 0 DO 4 I - LOOP → 4-0=4, 4-1=3, 4-2=2, 4-3=1
-check "do/loop 4-I"     "d-stack:(eval (parse \"4 0 DO 4 I - LOOP\") *north)"       "~[4 3 2 1]"
+check "do/loop 4-I"     "d-stack:(eval (parse \"4 0 DO 4 I - LOOP\") *north)"       "~[1 2 3 4]"
 
 echo ""
 echo "=== Tier 15: CREATE Tokenization ==="
@@ -679,7 +679,7 @@ echo "=== Tier 16: CATCH ==="
 # CATCH with no throw: xt runs normally, 0 pushed onto stack
 check "catch no throw" \
   "d-stack:(eval (parse \"5 ' DUP CATCH\") *north)" \
-  "~[5 5 0]"
+  "~[0 5 5]"
 
 # CATCH with direct THROW: saved d-stack restored, throw value pushed
 # Stack before CATCH: [42 'THROW']; saved-ds=[42]; THROW pops 42 sets tv=42 ds=[];
@@ -697,7 +697,7 @@ check "catch clears throw-val" \
 # CATCH restores [1 2 3 99] + push 99 → [1 2 3 99 99]
 check "catch restores stack" \
   "d-stack:(eval (parse \"1 2 3 99 ' THROW CATCH\") *north)" \
-  "~[1 2 3 99 99]"
+  "~[99 99 3 2 1]"
 
 # CATCH with user-defined throwing word
 check "catch user throw" \
@@ -724,7 +724,7 @@ check "catch in loop" \
 # CATCH restores r-stack to [5]; R> pops 5.  Without restore, R> would pop 7.
 check "catch restores r-stack" \
   "d-stack:(eval (parse \": DIRTY 7 >R 99 THROW ; 5 >R ' DIRTY CATCH R>\") *north)" \
-  "~[99 5]"
+  "~[5 99]"
 
 # Re-throw: inner CATCH catches 42 and re-throws; outer CATCH catches it
 check "rethrow" \
@@ -750,7 +750,7 @@ check "parse str-lit" \
 # S" pushes c-addr (0) and count on d-stack
 check "str-lit addr-count" \
   "d-stack:(eval (parse \"S\\\" hello\\\"\") *north)" \
-  "~[0 5]"
+  "~[5 0]"
 
 # S" advances HERE by string length
 check "str-lit advances here" \
@@ -831,7 +831,7 @@ check "BL" \
 # WORD with next token as string: stores counted string, pushes addr; COUNT unpacks
 check "WORD COUNT" \
   "d-stack:(eval (parse \"BL WORD hello COUNT\") *north)" \
-  "~[1 5]"
+  "~[5 1]"
 
 # COUNT addr points past length cell; length is 5 for "hello"
 check "WORD COUNT TYPE" \
@@ -841,7 +841,7 @@ check "WORD COUNT TYPE" \
 # WORD with a multi-char token
 check "WORD COUNT multi" \
   "d-stack:(eval (parse \"BL WORD FORTH COUNT\") *north)" \
-  "~[1 5]"
+  "~[5 1]"
 
 echo ""
 echo "=== Tier 20: IMMEDIATE ==="
@@ -863,7 +863,7 @@ check "IMMEDIATE in imm-words" \
 
 # FIND returns forth-true for an immediate word: use chained eval
 check "FIND immediate flag" \
-  "=+(st=(eval (parse \": IMW 1 ; IMMEDIATE\") *north) (rear d-stack:(eval ~[[%num n='imw'] [%word w='find']] st)))" \
+  "=+(st=(eval (parse \": IMW 1 ; IMMEDIATE\") *north) (snag 0 d-stack:(eval ~[[%num n='imw'] [%word w='find']] st)))" \
   "$T"
 
 echo ""
