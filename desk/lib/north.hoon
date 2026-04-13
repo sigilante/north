@@ -1398,13 +1398,6 @@
   ?:  =(wu 'I')       $(words rest, out (weld out ~[[%word w='I']]))
   ?:  =(wu 'J')       $(words rest, out (weld out ~[[%word w='J']]))
   ?:  =(wu 'UNLOOP')  $(words rest, out (weld out ~[[%word w='UNLOOP']]))
-  ::  [ noun-literal: Nock bracket notation → make-atom/make-cell tokens
-  ::  Option B (pure Forth parsing word in nock.fs) is a future possibility
-  ?:  =(wu '[')
-    =/  noun-res   (parse-cell-items rest)
-    =/  noun-toks=prog         -.noun-res
-    =/  noun-rest=(list tape)  +.noun-res
-    $(words noun-rest, out (weld out noun-toks))
   ::  Try as number literal
   =/  mn  (parse-num w)
   ?^  mn  $(words rest, out (weld out ~[[%num n=u.mn]]))

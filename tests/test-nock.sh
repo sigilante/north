@@ -2,8 +2,9 @@
 # Nock interpreter tests — loads nock.fs into a north state, then runs tests
 # Run from repo root: bash tests/test-nock.sh
 #
-# Noun literals use the [ ] syntax supported by north's parser.
-# Option B future: define a Forth parsing word in nock.fs for noun literals.
+# Note: [ ] is a Forth compile-time construct ([ ] LITERAL, Tier 14) so noun
+# literals use verbose make-atom/make-cell syntax here.
+# A future nock.fs parsing word (Option B) could provide cleaner notation.
 
 LIB="desk/lib/north.hoon"
 NOCK="tests/nock.fs"
@@ -54,95 +55,156 @@ check "get-head"       "1 make-atom 2 make-atom make-cell get-head get-value"  "
 check "get-tail"       "1 make-atom 2 make-atom make-cell get-tail get-value"  "~[2]"
 
 echo ""
-echo "=== Noun literal syntax [ ] ==="
-
-check "atom literal"      "[ 42 ] get-value"                   "~[42]"
-check "cell literal"      "[ 42 99 ] is-cell?"                 "~[1]"
-check "cell head"         "[ 42 99 ] get-head get-value"       "~[42]"
-check "cell tail"         "[ 42 99 ] get-tail get-value"       "~[99]"
-check "nested [ 1 [2 3]]" "[ 1 [ 2 3 ] ] get-tail is-cell?"   "~[1]"
-
-echo ""
 echo "=== Nock wut ? ==="
 
-check "wut atom"  "[ 5 ] wut"                 "~[1]"
-check "wut cell"  "[ 1 2 ] wut"               "~[0]"
+check "wut atom"  "5 make-atom wut"                                       "~[1]"
+check "wut cell"  "1 make-atom 2 make-atom make-cell wut"                 "~[0]"
 
 echo ""
 echo "=== Nock lus + ==="
 
-check "lus 0"    "[ 0 ] lus get-value"   "~[1]"
-check "lus 41"   "[ 41 ] lus get-value"  "~[42]"
-check "lus 255"  "[ 255 ] lus get-value" "~[256]"
+check "lus 0"    "0 make-atom lus get-value"                              "~[1]"
+check "lus 41"   "41 make-atom lus get-value"                             "~[42]"
+check "lus 255"  "255 make-atom lus get-value"                            "~[256]"
 
 echo ""
 echo "=== Nock tis = ==="
 
-check "tis equal atoms"   "[ 42 ] [ 42 ] tis get-value"  "~[0]"
-check "tis unequal atoms" "[ 1 ] [ 2 ] tis get-value"    "~[1]"
+check "tis equal atoms"   "42 make-atom 42 make-atom tis get-value"        "~[0]"
+check "tis unequal atoms" "1 make-atom 2 make-atom tis get-value"          "~[1]"
 
 echo ""
 echo "=== Nock slot / ==="
 
-check "slot 1 is-cell"  "[ 1 ] [ 42 99 ] slot is-cell?"           "~[1]"
-check "slot 2"          "[ 2 ] [ 42 99 ] slot get-value"           "~[42]"
-check "slot 3"          "[ 3 ] [ 42 99 ] slot get-value"           "~[99]"
-check "slot 4 deep"     "[ 4 ] [ [ 1 2 ] [ 3 4 ] ] slot get-value" "~[1]"
-check "slot 5 deep"     "[ 5 ] [ [ 1 2 ] [ 3 4 ] ] slot get-value" "~[2]"
+# /[1 [42 99]] = whole noun (a cell)
+check "slot 1 is-cell"  \
+  "1 make-atom  42 make-atom 99 make-atom make-cell  slot  is-cell?"  "~[1]"
+# /[2 [42 99]] = 42
+check "slot 2"  \
+  "2 make-atom  42 make-atom 99 make-atom make-cell  slot  get-value"  "~[42]"
+# /[3 [42 99]] = 99
+check "slot 3"  \
+  "3 make-atom  42 make-atom 99 make-atom make-cell  slot  get-value"  "~[99]"
+# /[4 [[1 2] [3 4]]] = 1
+check "slot 4 deep"  \
+  "4 make-atom  1 make-atom 2 make-atom make-cell  3 make-atom 4 make-atom make-cell  make-cell  slot  get-value"  "~[1]"
+# /[5 [[1 2] [3 4]]] = 2
+check "slot 5 deep"  \
+  "5 make-atom  1 make-atom 2 make-atom make-cell  3 make-atom 4 make-atom make-cell  make-cell  slot  get-value"  "~[2]"
 
 echo ""
 echo "=== Nock tar * ==="
 
-check "nock-1 constant"   "[ 42 [ 1 99 ] ] nock get-value"          "~[99]"
-check "nock-0 slot1"      "[ 42 [ 0 1 ] ] nock get-value"           "~[42]"
-check "nock-4 increment"  "[ 42 [ 4 [ 0 1 ] ] ] nock get-value"     "~[43]"
-check "nock-3 wut atom"   "[ 42 [ 3 [ 0 1 ] ] ] nock get-value"     "~[1]"
-check "nock-3 wut cell"   "[ [ 42 99 ] [ 3 [ 0 1 ] ] ] nock get-value" "~[0]"
-check "nock-5 tis"        "[ 0 [ 5 [ [ 0 1 ] [ 1 0 ] ] ] ] nock get-value" "~[0]"
+# *[42 [1 99]] = 99  (nock-1: constant)
+check "nock-1 constant"  \
+  "42 make-atom  1 make-atom 99 make-atom make-cell  make-cell  nock  get-value"  \
+  "~[99]"
+
+# *[42 [0 1]] = 42  (nock-0: slot 1 = whole subject)
+check "nock-0 slot1"  \
+  "42 make-atom  0 make-atom 1 make-atom make-cell  make-cell  nock  get-value"  \
+  "~[42]"
+
+# *[42 [4 [0 1]]] = 43  (nock-4: increment *[a [0 1]])
+check "nock-4 increment"  \
+  "42 make-atom  4 make-atom  0 make-atom 1 make-atom make-cell  make-cell  make-cell  nock  get-value"  \
+  "~[43]"
+
+# *[42 [3 [0 1]]] = 1  (nock-3: wut of atom = 1)
+check "nock-3 wut atom"  \
+  "42 make-atom  3 make-atom  0 make-atom 1 make-atom make-cell  make-cell  make-cell  nock  get-value"  \
+  "~[1]"
+
+# *[[42 99] [3 [0 1]]] = 0  (nock-3: wut of cell = 0)
+check "nock-3 wut cell"  \
+  "42 make-atom 99 make-atom make-cell  3 make-atom  0 make-atom 1 make-atom make-cell  make-cell  make-cell  nock  get-value"  \
+  "~[0]"
+
+# *[0 [5 [[0 1] [1 0]]]]  (nock-5: equality test 0 = 0 -> 0 = equal)
+check "nock-5 tis"  \
+  "0 make-atom  5 make-atom  0 make-atom 1 make-atom make-cell  1 make-atom 0 make-atom make-cell  make-cell  make-cell  make-cell  nock  get-value"  \
+  "~[0]"
 
 echo ""
 echo "=== Nock eval (2) ==="
 
 # *[42 [2 [0 1] [1 [4 [0 1]]]]] = *[42 [4 [0 1]]] = 43
 check "nock-2 eval"  \
-  "[ 42 [ 2 [ 0 1 ] [ 1 [ 4 [ 0 1 ] ] ] ] ] nock get-value"  \
+  "42 make-atom 2 make-atom 0 make-atom 1 make-atom make-cell 1 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell make-cell make-cell make-cell make-cell nock get-value"  \
   "~[43]"
 
 echo ""
 echo "=== Nock if-then-else (6) ==="
 
-# *[42 [6 [1 0] [4 [0 1]] [1 99]]] = 43  (condition=0=yes → true branch: +42)
+# *[42 [6 [1 0] [4 [0 1]] [1 99]]] = 43  (condition=0=yes -> true branch: +42)
 check "nock-6 true branch"  \
-  "[ 42 [ 6 [ 1 0 ] [ 4 [ 0 1 ] ] [ 1 99 ] ] ] nock get-value"  \
+  "42 make-atom 6 make-atom 1 make-atom 0 make-atom make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 1 make-atom 99 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
   "~[43]"
 
-# *[42 [6 [1 1] [4 [0 1]] [1 99]]] = 99  (condition=1=no → false branch)
+# *[42 [6 [1 1] [4 [0 1]] [1 99]]] = 99  (condition=1=no -> false branch: constant 99)
 check "nock-6 false branch"  \
-  "[ 42 [ 6 [ 1 1 ] [ 4 [ 0 1 ] ] [ 1 99 ] ] ] nock get-value"  \
+  "42 make-atom 6 make-atom 1 make-atom 1 make-atom make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 1 make-atom 99 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
   "~[99]"
 
 echo ""
 echo "=== Nock compose (7) ==="
 
-# *[42 [7 [4 [0 1]] [4 [0 1]]]] = 44
+# *[42 [7 [4 [0 1]] [4 [0 1]]]] = *[43 [4 [0 1]]] = 44
 check "nock-7 compose"  \
-  "[ 42 [ 7 [ 4 [ 0 1 ] ] [ 4 [ 0 1 ] ] ] ] nock get-value"  \
+  "42 make-atom 7 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 4 make-atom 0 make-atom 1 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
   "~[44]"
 
 echo ""
 echo "=== Nock push (8) ==="
 
-# *[42 [8 [4 [0 1]] [0 2]]] = 43
+# *[42 [8 [4 [0 1]] [0 2]]] = *[[43 42] [0 2]] = 43
 check "nock-8 push"  \
-  "[ 42 [ 8 [ 4 [ 0 1 ] ] [ 0 2 ] ] ] nock get-value"  \
+  "42 make-atom 8 make-atom 4 make-atom 0 make-atom 1 make-atom make-cell make-cell 0 make-atom 2 make-atom make-cell make-cell make-cell make-cell nock get-value"  \
   "~[43]"
 
 echo ""
 echo "=== Nock invoke (9) ==="
 
-# *[0 [9 2 [1 [[4 [0 3]] 42]]]]  arm [4 [0 3]] increments slot-3 (42) → 43
+# *[0 [9 2 [1 [[4 [0 3]] 42]]]]  (invoke arm at slot 2 of core [[4 [0 3]] 42])
+# arm [4 [0 3]] increments slot-3 (payload=42) -> 43
 check "nock-9 invoke"  \
-  "[ 0 [ 9 2 [ 1 [ [ 4 [ 0 3 ] ] 42 ] ] ] ] nock get-value"  \
+  "0 make-atom 9 make-atom 2 make-atom 1 make-atom 4 make-atom 0 make-atom 3 make-atom make-cell make-cell 42 make-atom make-cell make-cell make-cell make-cell make-cell nock get-value"  \
+  "~[43]"
+
+echo ""
+echo "=== Nock edit (10) ==="
+
+# *[a 10 [b c] d] = #[b *[a c] *[a d]]  (Nock 4K spec)
+# Replace slot 2 (head) of [42 43] with 99:
+# *[[42 43] [10 [2 [1 99]] [0 1]]] = #[2 99 [42 43]] = [99 43]
+# noun: [[42 43]  [10  [[2 [1 99]]  [0 1]]]]
+check "nock-10 replace head"  \
+  "42 make-atom 43 make-atom make-cell  10 make-atom  2 make-atom  1 make-atom 99 make-atom make-cell  make-cell  0 make-atom 1 make-atom make-cell  make-cell  make-cell  make-cell  nock  get-head get-value"  \
+  "~[99]"
+
+# Replace slot 3 (tail) of [42 43] with 77:
+# *[[42 43] [10 [3 [1 77]] [0 1]]] = #[3 77 [42 43]] = [42 77]
+check "nock-10 replace tail"  \
+  "42 make-atom 43 make-atom make-cell  10 make-atom  3 make-atom  1 make-atom 77 make-atom make-cell  make-cell  0 make-atom 1 make-atom make-cell  make-cell  make-cell  make-cell  nock  get-tail get-value"  \
+  "~[77]"
+
+echo ""
+echo "=== Nock hint (11) ==="
+
+# *[a 11 b c] = *[a c]  (static hint: ignore atom tag b, just eval c)
+# *[42 [11 1 [0 1]]] = *[42 [0 1]] = 42
+# noun: [42  [11  [1  [0 1]]]]
+check "nock-11 static hint"  \
+  "42 make-atom  11 make-atom  1 make-atom  0 make-atom 1 make-atom make-cell  make-cell  make-cell  make-cell  nock  get-value"  \
+  "~[42]"
+
+# *[a 11 [b c] d] = *[[*[a c] *[a d]] 0 3]  (dynamic hint: slot 3 = actual result)
+# *[42 [11 [1 [1 0]] [4 [0 1]]]]
+#   = *[[*[42 [1 0]] *[42 [4 [0 1]]]] [0 3]]
+#   = *[[0 43] [0 3]] = slot 3 of [0 43] = 43
+# noun: [42  [11  [[1 [1 0]]  [4 [0 1]]]]]
+check "nock-11 dynamic hint"  \
+  "42 make-atom  11 make-atom  1 make-atom  1 make-atom 0 make-atom make-cell  make-cell  4 make-atom  0 make-atom 1 make-atom make-cell  make-cell  make-cell  make-cell  make-cell  nock  get-value"  \
   "~[43]"
 
 echo ""
