@@ -192,8 +192,8 @@ DEFER tar
     SWAP get-tail get-tail get-head >R
     2 make-atom
     0 make-atom 1 make-atom make-cell
-    0 make-atom R> make-atom make-cell
-    make-cell make-cell
+    0 make-atom R> make-cell
+    make-cell make-cell make-cell
     tar ;
 
 : nock-10  ( subject formula -- result )  \ [a 10 [b c] d] -> #[b *[a c] *[a d]]
