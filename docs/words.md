@@ -1,6 +1,8 @@
 # North Word Reference
 
-All words implemented as of Tier 20. Stack notation: `( before -- after )`.
+All words implemented as of Tier 21. Stack notation: `( before -- after )`.
+
+`forth-true` is `0x7fff_ffff_ffff_ffff` (max direct atom in Vere64); `0` is false.
 
 ## Stack Manipulation
 
@@ -10,12 +12,13 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 | `DROP` | `( n -- )` | discard TOS |
 | `SWAP` | `( a b -- b a )` | swap top two |
 | `OVER` | `( a b -- a b a )` | copy NOS to top |
-| `ROT` | `( a b c -- b c a )` | rotate top three |
+| `ROT` | `( a b c -- b c a )` | rotate top three left |
+| `-ROT` | `( a b c -- c a b )` | rotate top three right |
 | `NIP` | `( a b -- b )` | drop NOS |
 | `TUCK` | `( a b -- b a b )` | copy TOS below NOS |
-| `PICK` | `( ... n -- ... xn )` | copy nth item to top |
+| `PICK` | `( ... n -- ... xn )` | copy nth item to top (0=TOS) |
 | `ROLL` | `( ... n -- ... )` | move nth item to top |
-| `?DUP` | `( n -- n n \| 0 )` | DUP if nonzero |
+| `?DUP` | `( n -- n n \| 0 )` | DUP if nonzero, else leave 0 |
 | `DEPTH` | `( -- n )` | number of items on stack |
 | `2DUP` | `( a b -- a b a b )` | duplicate top pair |
 | `2DROP` | `( a b -- )` | drop top pair |
@@ -38,13 +41,13 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 | `-` | `( a b -- n )` | subtract |
 | `*` | `( a b -- n )` | multiply |
 | `/` | `( a b -- n )` | divide (unsigned) |
-| `MOD` | `( a b -- n )` | modulo |
-| `/MOD` | `( a b -- rem quot )` | divide with remainder |
+| `MOD` | `( a b -- n )` | modulo (unsigned) |
+| `/MOD` | `( a b -- rem quot )` | unsigned divide with remainder |
 | `1+` | `( n -- n+1 )` | increment |
 | `1-` | `( n -- n-1 )` | decrement |
 | `2*` | `( n -- n*2 )` | left shift by 1 |
 | `2/` | `( n -- n/2 )` | right shift by 1 |
-| `NEGATE` | `( n -- -n )` | negate (signed) |
+| `NEGATE` | `( n -- -n )` | signed negate |
 | `ABS` | `( n -- \|n\| )` | absolute value |
 | `MAX` | `( a b -- max )` | maximum |
 | `MIN` | `( a b -- min )` | minimum |
@@ -62,7 +65,7 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 | `0>` | `( n -- flag )` | positive test (signed) |
 | `U<` | `( a b -- flag )` | unsigned less-than |
 | `U>` | `( a b -- flag )` | unsigned greater-than |
-| `TRUE` | `( -- -1 )` | canonical true flag |
+| `TRUE` | `( -- forth-true )` | canonical true flag |
 | `FALSE` | `( -- 0 )` | canonical false flag |
 
 ## Logic / Bitwise
@@ -85,32 +88,12 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 | `!` | `( n addr -- )` | store n at address |
 | `+!` | `( n addr -- )` | add n to cell at address |
 | `HERE` | `( -- addr )` | next free address |
-| `ALLOT` | `( n -- )` | allocate n cells |
-| `CELLS` | `( n -- n*cell )` | scale by cell size (1 on North) |
-| `CELL+` | `( addr -- addr+1 )` | advance by one cell |
-
-## Dictionary / Execution
-
-| Word | Stack | Description |
-|---|---|---|
-| `FIND` | `( addr cnt -- xt 1 \| xt -1 \| 0 )` | look up word by string; 1=immediate, -1=normal |
-| `EXECUTE` | `( xt -- )` | execute word at execution token |
-| `'` (tick) | `( -- xt )` | push xt of next word in input |
-| `STATE` | `( -- addr )` | address of compile/interpret flag |
-
-## Control Flow
-
-| Word | Notes |
-|---|---|
-| `IF ... THEN` | conditional; `IF ... ELSE ... THEN` also supported |
-| `BEGIN ... UNTIL` | loop until TOS nonzero |
-| `BEGIN ... WHILE ... REPEAT` | loop while TOS nonzero |
-| `DO ... LOOP` | counted loop; `DO ... +LOOP` for stepped loops |
-| `LEAVE` | exit innermost DO loop immediately |
-| `I` | `( -- n )` current loop index |
-| `J` | `( -- n )` outer loop index |
-| `UNLOOP` | clean up return stack after early exit from DO loop |
-| `CASE ... OF ... ENDOF ... ENDCASE` | multi-way dispatch (ANSI) |
+| `ALLOT` | `( n -- )` | allocate n cells (initialised to 0) |
+| `CELLS` | `( n -- n )` | scale by cell size (cell=1, identity on North) |
+| `CHARS` | `( n -- n )` | scale by char size (char=1, identity on North) |
+| `CELL` | `( -- 1 )` | push cell size in address units |
+| `CELL+` | `( addr -- addr+1 )` | advance address by one cell |
+| `,` | `( n -- )` | store n at HERE and advance HERE |
 
 ## Output
 
@@ -122,8 +105,34 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 | `CR` | `( -- )` | emit newline |
 | `SPACE` | `( -- )` | emit one space |
 | `SPACES` | `( n -- )` | emit n spaces |
-| `." text"` | `( -- )` | compile: emit string literal at runtime |
+| `BL` | `( -- 32 )` | push ASCII space character code |
+| `." text"` | `( -- )` | (compile-time) emit string literal at runtime |
 | `S" text"` | `( -- addr cnt )` | push string address and count |
+
+## Dictionary / Execution
+
+| Word | Stack | Description |
+|---|---|---|
+| `FIND` | `( addr cnt -- name forth-true \| name 1 \| addr 0 )` | look up word by string; forth-true=immediate, 1=non-immediate, 0=not found |
+| `EXECUTE` | `( xt -- )` | execute word named by execution token (cord) |
+| `'` (tick) | `( -- xt )` | push execution token (cord) of next parsed word |
+| `STATE` | `( -- flag )` | 0 = interpret mode, forth-true = compile mode |
+
+## Control Flow
+
+| Word | Notes |
+|---|---|
+| `IF ... THEN` | conditional; `IF ... ELSE ... THEN` also supported |
+| `BEGIN ... UNTIL` | loop until TOS nonzero |
+| `BEGIN ... WHILE ... REPEAT` | loop while TOS nonzero |
+| `DO ... LOOP` | counted loop from start to limit; body always executes at least once |
+| `DO ... +LOOP` | counted loop with arbitrary step (TOS) |
+| `LEAVE` | `( -- )` exit innermost DO loop immediately |
+| `I` | `( -- n )` current loop index |
+| `J` | `( -- n )` outer loop index (inside nested DO loops) |
+| `UNLOOP` | clean up r-stack entries after early exit from DO loop |
+| `EXIT` | exit the current word immediately |
+| `CASE ... OF ... ENDOF ... ENDCASE` | multi-way dispatch (ANSI) |
 
 ## Defining Words
 
@@ -131,51 +140,62 @@ All words implemented as of Tier 20. Stack notation: `( before -- after )`.
 |---|---|
 | `: NAME ... ;` | define a new word |
 | `VARIABLE NAME` | allocate a cell and bind NAME to its address |
-| `CONSTANT NAME` | bind TOS value as NAME |
-| `RECURSE` | recursive call to the word being defined |
+| `CONSTANT NAME` | bind TOS value as NAME (NAME pushes that value) |
+| `RECURSE` | recursive call to the word currently being defined |
 | `CREATE NAME` | create a named dictionary entry pointing to HERE |
-| `DOES>` | set runtime behavior of the most recently CREATEd word |
-| `LITERAL` | compile TOS value into the current definition |
+| `DOES>` | set runtime behaviour of the most recently CREATEd word |
+| `DEFER NAME` | create an indirection word; body can be set later with IS |
+| `IS NAME` | `( xt -- )` set the execution token that DEFER'd word NAME dispatches to |
+| `LITERAL` | `( n -- )` (compile-time) compile TOS value as a literal into current definition |
 | `[` | switch to interpret mode mid-definition |
 | `]` | switch back to compile mode |
+| `IMMEDIATE` | mark most recently defined word as compile-time immediate |
 
 ## Exception Handling
 
 | Word | Stack | Description |
 |---|---|---|
-| `CATCH` | `( xt -- 0 \| n )` | execute xt; 0 on success, throw value on exception |
+| `CATCH` | `( xt -- 0 \| n )` | execute xt; push 0 on success, throw value n on exception |
 | `THROW` | `( n -- )` | raise exception with value n (0 = no-op) |
+
+## Text Input
+
+| Word | Stack | Description |
+|---|---|---|
+| `WORD` | `( delim -- c-addr )` | read next token from current input; store as counted string at PAD; push address. In North, reads the next compiled token from the program stream rather than the live input buffer. |
+| `COUNT` | `( c-addr -- c-addr+1 u )` | unpack counted string: advance address by 1 (past length byte), push character count |
+
+## Character
+
+| Word | Stack | Description |
+|---|---|---|
+| `[CHAR] x` | `( -- n )` | (compile-time) push ASCII code of the first character of the next token |
+
+## Utility
+
+| Word | Stack | Description |
+|---|---|---|
+| `NOOP` | `( -- )` | no operation |
 
 ## REPL Meta-Commands
 
-These are handled by the Gall agent before reaching the interpreter:
+Handled by the Gall agent before reaching the interpreter:
 
 | Command | Description |
 |---|---|
 | `SON` | enable stack display after each `ok` |
 | `SOFF` | disable stack display |
 
-## Text Input
-
-| Word | Stack | Description |
-|---|---|---|
-| `BL` | `( -- 32 )` | push ASCII space character |
-| `WORD` | `( delim -- c-addr )` | read next token from input; store as counted string at HERE; push address. Note: in North, reads the next compiled token from the program rather than the live input stream. |
-| `COUNT` | `( c-addr -- c-addr+1 u )` | unpack counted string: push char address and length |
-
-## Defining Word Flags
-
-| Word | Stack | Description |
-|---|---|---|
-| `IMMEDIATE` | `( -- )` | mark most recently defined word as compile-time immediate |
-
-Immediate words execute during compilation instead of being compiled into the current definition. This enables compile-time macros. `FIND` returns `forth-true` for immediate words and `1` for normal words.
-
 ## Not Yet Implemented
 
 | Word | Notes |
 |---|---|
-| `ACCEPT` | read a line of input |
-| `KEY` | read a single character |
-| `HEX` / `DECIMAL` | change numeric base |
+| `ACCEPT` | read a line of input into a buffer |
+| `KEY` | read a single character from input |
+| `HEX` / `DECIMAL` / `BASE` | change numeric base |
+| `U.` | print TOS as unsigned, respecting BASE |
+| `MOVE` / `CMOVE` / `FILL` | bulk memory operations |
+| `EVALUATE` | evaluate a string as Forth source |
+| `POSTPONE` | compile-time: compile the compilation semantics of the next word |
+| `[']` | compile-time tick — push xt of a word at compile time |
 | `REFILL` | refill the input buffer |
