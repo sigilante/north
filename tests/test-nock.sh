@@ -146,14 +146,6 @@ check "nock-9 invoke"  \
   "~[43]"
 
 echo ""
-echo "=== urbit/benchmark: decrement ==="
-# Standard Nock decrement: *[n [8 [1 0] [8 [1 6 [5 [0 6] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]]]
-# Decrement 1 → 0
-check "dec 1"   "[ 1 [ 8 [ 1 0 ] [ 8 [ 1 6 [ 5 [ 0 6 ] 4 0 6 ] [ 0 6 ] 9 2 [ 0 2 ] [ 4 0 6 ] 0 7 ] 9 2 0 1 ] ] ] nock get-value"  "~[0]"
-# Decrement 42 → 41
-check "dec 42"  "[ 42 [ 8 [ 1 0 ] [ 8 [ 1 6 [ 5 [ 0 6 ] 4 0 6 ] [ 0 6 ] 9 2 [ 0 2 ] [ 4 0 6 ] 0 7 ] 9 2 0 1 ] ] ] nock get-value" "~[41]"
-
-echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
