@@ -1174,6 +1174,64 @@
   =/  b  (parse-bin t)
   ?^  b  b
   (parse-dec t)
+:: PARSE-NOUN-TOK - parse one Nock noun from a word list
+::   Atom:  N      → [%num N] [%word MAKE-ATOM]
+::   Cell:  [ ...] → (parse-cell-items ...)
+::   Returns [emitted-tokens remaining-words]
+++  parse-noun-tok
+  |=  words=(list tape)
+  ^-  [prog (list tape)]
+  ?~  words  [~ ~]
+  =/  wu  (crip (cuss i.words))
+  ?:  =(wu '[')
+    (parse-cell-items t.words)
+  ?:  =(wu ']')
+    [~ words]
+  =/  n  (parse-num (trip wu))
+  ?~  n  [~ words]
+  [~[[%num n=u.n] [%word w='MAKE-ATOM']] t.words]
+:: PARSE-CELL-ITEMS - collect noun items until ], fold right-associatively
+::   Reads items by calling parse-noun-tok until ] or unknown token.
+::   Returns [noun-tokens remaining-words-after-]]
+++  parse-cell-items
+  |=  words=(list tape)
+  ^-  [prog (list tape)]
+  =|  items=(list prog)
+  =|  cnt=@ud
+  |-
+  ?~  words
+    [(build-noun-toks (flop items) cnt) ~]
+  =/  wu  (crip (cuss i.words))
+  ?:  =(wu ']')
+    [(build-noun-toks (flop items) cnt) t.words]
+  =/  res   (parse-noun-tok words)
+  =/  item=prog            -.res
+  =/  words-next=(list tape)  +.res
+  ?~  item
+    [(build-noun-toks (flop items) cnt) words-next]
+  $(words words-next, items [item items], cnt +(cnt))
+:: BUILD-NOUN-TOKS - fold n item-token-lists into right-associative noun tokens
+::   For n items pushed left-to-right, (n-1) MAKE-CELL calls right-folds them:
+::   [a b c] → a b c make-cell make-cell = [a [b c]]
+++  build-noun-toks
+  |=  [items=(list (list token)) n=@ud]
+  ^-  (list token)
+  ?:  =(0 n)  ~
+  ?:  =(1 n)
+    ?~  items  ~
+    i.items
+  ::  flatten all item token lists into one sequence
+  =/  flat=prog
+    =|  acc=prog
+    |-
+    ?~  items  acc
+    $(items t.items, acc (welp acc i.items))
+  ::  append (n-1) MAKE-CELL tokens
+  =|  cells=prog
+  =/  i  (dec n)
+  |-
+  ?:  =(0 i)  (welp flat cells)
+  $(i (dec i), cells [[%word w='MAKE-CELL'] cells])
 :: PARSE - compile Forth source tape to prog
 ::  Handles: numbers (dec/hex/bin), words, : ; ' ( comments
 ::  Control flow: IF ELSE THEN, BEGIN AGAIN UNTIL, BEGIN WHILE REPEAT
@@ -1340,6 +1398,13 @@
   ?:  =(wu 'I')       $(words rest, out (weld out ~[[%word w='I']]))
   ?:  =(wu 'J')       $(words rest, out (weld out ~[[%word w='J']]))
   ?:  =(wu 'UNLOOP')  $(words rest, out (weld out ~[[%word w='UNLOOP']]))
+  ::  [ noun-literal: Nock bracket notation → make-atom/make-cell tokens
+  ::  Option B (pure Forth parsing word in nock.fs) is a future possibility
+  ?:  =(wu '[')
+    =/  noun-res   (parse-cell-items rest)
+    =/  noun-toks=prog         -.noun-res
+    =/  noun-rest=(list tape)  +.noun-res
+    $(words noun-rest, out (weld out noun-toks))
   ::  Try as number literal
   =/  mn  (parse-num w)
   ?^  mn  $(words rest, out (weld out ~[[%num n=u.mn]]))
