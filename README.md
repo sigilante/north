@@ -15,7 +15,7 @@ North runs as a Gall `%shoe` agent on an Urbit ship.  After installing the desk,
 connect to the REPL from the dojo:
 
 ```
-|dojo/link our %north
+|dojo/link %north
 ```
 
 Then type Forth expressions at the `> ` prompt:
@@ -42,10 +42,19 @@ Errors are caught and displayed as `! <message>` without crashing the agent.
 
 ```
 desk/
-  lib/north.hoon     — interpreter: types, tokenizer, eval loop (~1000 lines)
+  lib/north.hoon     — interpreter: types, tokenizer, eval loop (~1300 lines)
   app/north.hoon     — Gall %shoe REPL agent
 tests/
-  test-north.sh      — shell test harness (~270 tests, 0 failures through Tier 17)
+  test-north.sh      — shell test harness (~290 tests, Tiers 0–21)
+  nock.fs            — Nock interpreter written in North Forth
+  test-nock.sh       — 34 tests for the Nock interpreter (make test)
+  test-nock-long.sh  — long-running benchmark tests (make test-long)
+examples/
+  fibonacci.fs       — iterative Fibonacci
+  ackermann.fs       — recursive Ackermann-Péter function
+  sieve.fs           — Sieve of Eratosthenes
+  charclass.fs       — isdigit / isalpha / isalnum / toupper / tolower
+  wordcount.fs       — word count over a memory buffer
 docs/
   architecture.md    — architecture overview
   words.md           — word reference
@@ -65,7 +74,21 @@ docs/
 - **Tier 18**: Gall `%shoe` REPL agent with persistent state, SON/SOFF stack display
 - **Tier 19**: `WORD`, `BL`, `COUNT` — text input words
 - **Tier 20**: `IMMEDIATE` — compile-time word flag; FIND returns ANSI-compliant flags
+- **Tier 21**: `DEFER`/`IS` deferred words, `EXIT`, `-ROT`, `CELL`, `CHARS`, `[CHAR]`, `NOOP`
+
+## Nock Interpreter
+
+`tests/nock.fs` is a complete Nock interpreter written in North Forth, ported from
+[forth-nock](https://github.com/mopfel-winrux/forth-nock).  It exercises virtually
+all of North's runtime: DEFER, recursive words, memory allocation, R-stack usage,
+and the full control-flow repertoire.  All 11 Nock opcodes (0–11) are implemented
+and tested.
 
 ## Roadmap
 
-- **Tier 21+**: Nock code generation — emit Nock nouns from Forth definitions
+- **Example programs**: fibonacci, Ackermann, sieve, character classification,
+  word count — demonstrating North as a general-purpose language
+- **Missing standard words**: `MOVE`/`CMOVE`/`FILL`, `HEX`/`DECIMAL`/`U.`,
+  `EVALUATE`, `POSTPONE`, `[']`
+- **Nock compiler**: emit Nock nouns from Forth definitions (self-hosting goal)
+- **Jets**: once a stable Nock output exists, replace hot paths with native code
