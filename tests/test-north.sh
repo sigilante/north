@@ -485,6 +485,19 @@ check "AS-DATE ."      "output.buffers:(eval (parse \"AS-DATE NOW .\") *north)" 
 check "AS-CORD ."      "output.buffers:(eval (parse \"AS-CORD 65 .\") *north)"              "\"A \""
 
 echo ""
+echo "=== EVALUATE ==="
+
+# EVALUATE ( addr cnt -- ) parses and evals a string from memory
+# Store "2 3 +" at addresses 0-4, then evaluate it → stack has 5
+check "EVALUATE arith"   "d-stack:(eval (parse \"S\\\" 2 3 +\\\" EVALUATE\") *north)"              "~[5]"
+# EVALUATE can define words
+check "EVALUATE defn"    "d-stack:(eval (parse \"S\\\" : SQ DUP * ;\\\" EVALUATE 4 SQ\") *north)"  "~[16]"
+# EVALUATE output lands in the buffer
+check "EVALUATE output"  "output.buffers:(eval (parse \"S\\\" 42 .\\\" EVALUATE\") *north)"        "\"42 \""
+# EVALUATE respects current state (HEX mode carries in)
+check "EVALUATE HEX"     "output.buffers:(eval (parse \"HEX S\\\" 255 .\\\" EVALUATE\") *north)"   "\"FF \""
+
+echo ""
 echo "=== Tier 13: TYPE output ==="
 
 # TYPE ( addr cnt -- ) prints cnt chars from memory starting at addr

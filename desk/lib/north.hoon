@@ -571,6 +571,13 @@
     =^  addr=@  ds  (pop ds)
     =/  chars  (read-chars addr cnt mem.st)
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st chars)))
+  ?:  =(w 'EVALUATE')
+    ::  ( addr cnt -- )  parse and eval string from memory
+    =^  cnt=@   ds  (pop ds)
+    =^  addr=@  ds  (pop ds)
+    =/  src=tape  (read-chars addr cnt mem.st)
+    =/  st1  st(d-stack ds)
+    (eval (parse src) st1)
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
   ?:  =(w 'I')
