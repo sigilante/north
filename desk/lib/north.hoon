@@ -17,6 +17,7 @@
       base=@tas         ::  print aura: '' or 'ud'=decimal, 'ux'=hex, 'ub'=binary, 'da'=date, 'p'=ship, 't'=cord
       now=@da           ::  current time; set by agent before each eval; 0 in lib context
       our=@p            ::  our ship; set by agent before each eval; 0 (~zod) in lib context
+      desk=@tas         ::  desk name for INCLUDE/INCLUDED Clay scries; set by agent
       tin=@ud
       ntib=@ud
       here=@ud
@@ -254,6 +255,20 @@
   ?:  =(b 'p')   (scow 'p' n)
   ?:  =(b 't')   (trip ^-(@t n))
   (num-to-tape n)
+:: SPLIT-ON-SLASH - split a tape on '/' dropping empty segments (for Clay path construction)
+++  split-on-slash
+  |=  t=tape
+  ^-  (list tape)
+  =/  segs=(list tape)  ~
+  =/  cur=tape  ~
+  |-
+  ?~  t
+    (flop ?~(cur segs [cur segs]))
+  ?:  =('/' i.t)
+    ?~  cur
+      $(t t.t)
+    $(t t.t, segs [(flop cur) segs], cur ~)
+  $(t t.t, cur [i.t cur])
 :: READ-CHARS - read cnt chars from stak at addr, produce tape
 ++  read-chars
   ::  Extract cnt chars from stak starting at addr, produce tape
@@ -578,6 +593,19 @@
     =/  src=tape  (read-chars addr cnt mem.st)
     =/  st1  st(d-stack ds)
     (eval (parse src) st1)
+  ?:  =(w 'INCLUDED')
+    ::  ( addr cnt -- )  load and eval a Forth source file from Clay
+    =^  cnt=@   ds  (pop ds)
+    =^  addr=@  ds  (pop ds)
+    =/  path-tape=tape  (read-chars addr cnt mem.st)
+    =/  segs=(list @ta)  (turn (split-on-slash path-tape) crip)
+    =/  pax=path
+      %+  welp
+      ~[(scot %p our.settings.st) desk.settings.st (scot %da now.settings.st)]
+      (snoc segs %fs)
+    =/  src=wain  .^(wain %cx pax)
+    =/  full=tape  (zing (turn src |=(=cord (weld (trip cord) " "))))
+    (eval (parse full) st(d-stack ds))
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
   ?:  =(w 'I')

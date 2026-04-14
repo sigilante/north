@@ -79,9 +79,14 @@
   ?:  =(wu 'SOFF')
     :_  this(show-stack %.n)
     ~[[%shoe ~[sole-id] %sole [%txt "stack display off"]]]
+  ::  INCLUDE <path> is parsing sugar for S" <path>" INCLUDED
+  =/  cmd
+    ?.  =((cuss (scag 8 cmd)) "INCLUDE ")
+      cmd
+    :(weld "S\" " (slag 8 cmd) "\" INCLUDED")
   ::  run Forth input through the interpreter
-  ::  inject now and our from the bowl so NOW and OUR words are current
-  =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl))
+  ::  inject now, our, and desk from the bowl so NOW/OUR/INCLUDE work correctly
+  =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl, desk q.byk.bowl))
   =/  result  (mule |.((eval:vm (parse:vm cmd) forth1)))
   ?:  ?=([%| *] result)
     =/  tanks  p.result
