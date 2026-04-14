@@ -14,7 +14,7 @@
   ==
 +$  settings-map
   $:  state=?           ::  %.y = interpret mode (bunt), %.n = compile mode
-      base=@ud
+      base=@tas         ::  print aura: '' or 'ud'=decimal, 'ux'=hex, 'ub'=binary
       tin=@ud
       ntib=@ud
       here=@ud
@@ -220,6 +220,35 @@
   ?:  =(0 n)  ~
   =/  qr  (divmod:ua n 10)
   (weld $(n p.qr) ~[^-(@t (add:ua q.qr 48))])
+:: NUM-TO-HEX-TAPE - format atom as uppercase hex digits (no prefix)
+++  num-to-hex-tape
+  |=  n=@
+  ^-  tape
+  ?:  =(0 n)  "0"
+  |-  ^-  tape
+  ?:  =(0 n)  ~
+  =/  d  (mod:ua n 16)
+  =/  c=@t  ?:  (lth:ua d 10)
+              ^-(@t (add:ua d 48))     ::  '0'-'9'
+            ^-(@t (add:ua d 55))       ::  'A'-'F' (55 = 'A' - 10)
+  (weld $(n (div:ua n 16)) ~[c])
+:: NUM-TO-BIN-TAPE - format atom as binary digits (no prefix)
+++  num-to-bin-tape
+  |=  n=@
+  ^-  tape
+  ?:  =(0 n)  "0"
+  |-  ^-  tape
+  ?:  =(0 n)  ~
+  =/  d  (mod:ua n 2)
+  =/  c=@t  ^-(@t (add:ua d 48))      ::  '0' or '1'
+  (weld $(n (div:ua n 2)) ~[c])
+:: NUM-TO-BASE-TAPE - format atom in the current print aura
+++  num-to-base-tape
+  |=  [n=@ b=@tas]
+  ^-  tape
+  ?:  =(b 'ux')  (num-to-hex-tape n)
+  ?:  =(b 'ub')  (num-to-bin-tape n)
+  (num-to-tape n)
 :: READ-CHARS - read cnt chars from stak at addr, produce tape
 ++  read-chars
   ::  Extract cnt chars from stak starting at addr, produce tape
@@ -484,10 +513,28 @@
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (tape-reap n ' '))))
   ::  Tier 13: Number and string output
   ?:  =(w '.')
-    ::  ( n -- )  print TOS as unsigned decimal followed by a space
+    ::  ( n -- )  print TOS in current base followed by a space
     =^  n=@  ds  (pop ds)
-    =/  str  (weld (num-to-tape n) ~[' '])
+    =/  str  (weld (num-to-base-tape n base.settings.st) ~[' '])
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st str)))
+  ?:  =(w 'U.')
+    ::  ( u -- )  print TOS as unsigned in current base followed by a space (alias for .)
+    =^  n=@  ds  (pop ds)
+    =/  str  (weld (num-to-base-tape n base.settings.st) ~[' '])
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st str)))
+  ::  BASE/HEX/DECIMAL — numeric base control
+  ?:  =(w 'HEX')
+    st(settings settings.st(base 'ux'))
+  ?:  =(w 'DECIMAL')
+    st(settings settings.st(base 'ud'))
+  ?:  =(w 'BINARY')
+    st(settings settings.st(base 'ub'))
+  ?:  =(w 'BASE')
+    ::  ( -- n )  push current numeric base as an integer
+    =/  n  ?:  =(base.settings.st 'ux')  16
+           ?:  =(base.settings.st 'ub')  2
+           10
+    st(d-stack (push ds n))
   ?:  =(w 'TYPE')
     ::  ( addr cnt -- )  print cnt chars from mem starting at addr
     =^  cnt=@   ds  (pop ds)
