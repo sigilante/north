@@ -610,6 +610,18 @@
     %num
       $(ip +(ip), st st(d-stack (push d-stack.st n.tok)))
     %word
+      ::  Noun literal: [ in interpret mode — if followed by pure noun content, parse as literal
+      ?:  =(w.tok '[')
+        ?:  (is-pure-noun p +(ip))
+          =/  res  (noun-lit-list p +(ip))
+          =/  ip1  +.res
+          =/  st1  (eval -.res st)
+          ?:  !=(0 throw-val.settings.st1)  st1
+          $(ip ip1, st st1)
+        ::  Not a pure noun — fall through to run-word (Tier 14 no-op)
+        =/  st1  (run-word '[' st)
+        ?:  !=(0 throw-val.settings.st1)  st1
+        $(ip +(ip), st st1)
       ::  Tier 19: WORD ( delim -- c-addr ) — consume next token as a counted string
       ::  Token-based: reads next prog token, not raw character input.
       ::  Works in interpret mode; compiled definitions should use BL WORD at the top level.
@@ -1117,6 +1129,22 @@
         ^$(src t.str-rest, words [(weld cw (weld str-content ~['"'])) words], cur ~)
       $(str-rest t.str-rest, str-content (weld str-content ~[i.str-rest]))
     $(src t.src, words [cw words], cur ~)
+  ::  [ is self-delimiting; [CHAR] is a special compound token kept intact
+  ?:  =(91 c)
+    ?:  =("CHAR]" (cuss (scag 5 t.src)))
+      ::  [CHAR] — emit as single token, skip "CHAR]"
+      ?~  cur
+        $(src (slag 5 t.src), words ["[CHAR]" words])
+      $(src (slag 5 t.src), words ["[CHAR]" (flop cur) words], cur ~)
+    ::  Regular [: flush cur and emit [ as its own token
+    ?~  cur
+      $(src t.src, words ["[" words])
+    $(src t.src, words ["[" (flop cur) words], cur ~)
+  ::  ] is self-delimiting
+  ?:  =(93 c)
+    ?~  cur
+      $(src t.src, words ["]" words])
+    $(src t.src, words ["]" (flop cur) words], cur ~)
   $(src t.src, cur [c cur])
 :: PARSE-DEC - parse unsigned decimal tape; ~ if invalid or empty
 ::  Uses 'any' flag to distinguish "" (invalid) from "0" (valid)
@@ -1174,42 +1202,66 @@
   =/  b  (parse-bin t)
   ?^  b  b
   (parse-dec t)
-:: PARSE-NOUN-TOK - parse one Nock noun from a word list
-::   Atom:  N      → [%num N] [%word MAKE-ATOM]
-::   Cell:  [ ...] → (parse-cell-items ...)
-::   Returns [emitted-tokens remaining-words]
-++  parse-noun-tok
-  |=  words=(list tape)
-  ^-  [prog (list tape)]
-  ?~  words  [~ ~]
-  =/  wu  (crip (cuss i.words))
-  ?:  =(wu '[')
-    (parse-cell-items t.words)
-  ?:  =(wu ']')
-    [~ words]
-  =/  n  (parse-num (trip wu))
-  ?~  n  [~ words]
-  [~[[%num n=u.n] [%word w='MAKE-ATOM']] t.words]
-:: PARSE-CELL-ITEMS - collect noun items until ], fold right-associatively
-::   Reads items by calling parse-noun-tok until ] or unknown token.
-::   Returns [noun-tokens remaining-words-after-]]
-++  parse-cell-items
-  |=  words=(list tape)
-  ^-  [prog (list tape)]
+:: IS-PURE-NOUN - check if tokens from start-ip to matching ] are all numbers/nested brackets
+++  is-pure-noun
+  |=  [p=prog start-ip=@]
+  ^-  ?
+  =/  n  (lent p)
+  =|  depth=@ud
+  |-
+  ?:  (gte:ua start-ip n)  %.n
+  =/  tok  (snag-prog start-ip p)
+  ?:  ?=([%num *] tok)
+    $(start-ip +(start-ip))
+  ?.  ?=([%word *] tok)
+    %.n
+  ?:  =(w.tok '[')
+    $(start-ip +(start-ip), depth +(depth))
+  ?:  =(w.tok ']')
+    ?:  =(0 depth)  %.y
+    $(start-ip +(start-ip), depth (dec depth))
+  %.n
+:: NOUN-LIT-ONE - parse one noun element from prog at ip
+::   Atom:  %num N → [%num N] [%word MAKE-ATOM], ip+1
+::   Cell:  %word [ → (noun-lit-list p ip+1)
+::   Other: returns [~ ip] (stop signal)
+++  noun-lit-one
+  |=  [p=prog ip=@]
+  ^-  [prog @]
+  ?:  (gte:ua ip (lent p))  [~ ip]
+  =/  tok  (snag-prog ip p)
+  ?:  ?=([%num *] tok)
+    [~[[%num n=n.tok] [%word w='MAKE-ATOM']] +(ip)]
+  ?.  ?=([%word *] tok)
+    [~ ip]
+  ?:  =(w.tok '[')
+    (noun-lit-list p +(ip))
+  [~ ip]
+:: NOUN-LIT-LIST - parse noun elements until ], build right-associative cells
+::   Called after the opening [ has been consumed.
+::   Returns [tokens ip-after-closing-]]
+++  noun-lit-list
+  |=  [p=prog ip=@]
+  ^-  [prog @]
   =|  items=(list prog)
   =|  cnt=@ud
   |-
-  ?~  words
-    [(build-noun-toks (flop items) cnt) ~]
-  =/  wu  (crip (cuss i.words))
-  ?:  =(wu ']')
-    [(build-noun-toks (flop items) cnt) t.words]
-  =/  res   (parse-noun-tok words)
-  =/  item=prog            -.res
-  =/  words-next=(list tape)  +.res
-  ?~  item
-    [(build-noun-toks (flop items) cnt) words-next]
-  $(words words-next, items [item items], cnt +(cnt))
+  ?:  (gte:ua ip (lent p))
+    [(build-noun-toks (flop items) cnt) ip]
+  =/  tok  (snag-prog ip p)
+  ?:  ?=([%word *] tok)
+    ?:  =(w.tok ']')
+      [(build-noun-toks (flop items) cnt) +(ip)]
+    =/  res  (noun-lit-one p ip)
+    =/  item  -.res
+    =/  ip1   +.res
+    ?~  item  [(build-noun-toks (flop items) cnt) ip]
+    $(ip ip1, items [item items], cnt +(cnt))
+  =/  res  (noun-lit-one p ip)
+  =/  item  -.res
+  =/  ip1   +.res
+  ?~  item  [(build-noun-toks (flop items) cnt) ip]
+  $(ip ip1, items [item items], cnt +(cnt))
 :: BUILD-NOUN-TOKS - fold n item-token-lists into right-associative noun tokens
 ::   For n items pushed left-to-right, (n-1) MAKE-CELL calls right-folds them:
 ::   [a b c] → a b c make-cell make-cell = [a [b c]]

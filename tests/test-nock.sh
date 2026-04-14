@@ -2,9 +2,8 @@
 # Nock interpreter tests — loads nock.fs into a north state, then runs tests
 # Run from repo root: bash tests/test-nock.sh
 #
-# Note: [ ] is a Forth compile-time construct ([ ] LITERAL, Tier 14) so noun
-# literals use verbose make-atom/make-cell syntax here.
-# A future nock.fs parsing word (Option B) could provide cleaner notation.
+# Noun literals [42], [42 99], etc. are now supported in interpret mode.
+# These tests continue to use verbose make-atom/make-cell syntax for clarity.
 
 LIB="desk/lib/north.hoon"
 NOCK="tests/nock.fs"
