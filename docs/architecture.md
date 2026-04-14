@@ -176,5 +176,6 @@ North was built tier-by-tier, each tier adding a set of words or features:
 | 19 | 20 | `IMMEDIATE` — compile-time word flag |
 | 21 | 21 | `DEFER`/`IS`, `EXIT`, `-ROT`, `CELL`, `CHARS`, `[CHAR]`, `NOOP` |
 | — | 22 | Noun literals `[42]`, `[42 99]`, `[[1 2] 3]` via `is-pure-noun` lookahead |
+| — | 23 | `HEX`/`DECIMAL`/`BINARY`/`BASE`/`U.`; `.` respects base; base stored as aura tag (`%ux`, `%ud`, `%ub`) |
 
 **Next:** Nock code generation — emit Nock nouns from Forth definitions.

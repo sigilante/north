@@ -427,7 +427,7 @@ check "bracket top level"       "d-stack:(eval (parse \"3 [ 4 + ] 5\") *north)" 
 echo ""
 echo "=== Tier 13: . (dot) output ==="
 
-# . prints TOS as unsigned decimal followed by a space, consuming TOS
+# . prints TOS unsigned in current base followed by a space, consuming TOS
 check "dot 0"          "output.buffers:(eval (parse \"0 .\") *north)"             "\"0 \""
 check "dot 42"         "output.buffers:(eval (parse \"42 .\") *north)"            "\"42 \""
 check "dot 999"        "output.buffers:(eval (parse \"999 .\") *north)"           "\"999 \""
@@ -438,6 +438,51 @@ check "dot stack"      "d-stack:(eval (parse \"7 .\") *north)"                  
 check "dot multiple"   "output.buffers:(eval (parse \"1 . 2 . 3 .\") *north)"    "\"1 2 3 \""
 # . in a word definition
 check "dot in word"    "output.buffers:(eval (parse \": show  . ;  42 show\") *north)" "\"42 \""
+
+echo ""
+echo "=== Numeric base: HEX / DECIMAL / BINARY / BASE ==="
+
+# HEX sets base to %ux; . prints uppercase hex without prefix
+check "HEX 255 ."      "output.buffers:(eval (parse \"HEX 255 .\") *north)"       "\"FF \""
+check "HEX 0 ."        "output.buffers:(eval (parse \"HEX 0 .\") *north)"         "\"0 \""
+check "HEX 16 ."       "output.buffers:(eval (parse \"HEX 16 .\") *north)"        "\"10 \""
+check "HEX 256 ."      "output.buffers:(eval (parse \"HEX 256 .\") *north)"       "\"100 \""
+# DECIMAL restores base
+check "HEX then DEC"   "output.buffers:(eval (parse \"HEX 255 . DECIMAL 255 .\") *north)" "\"FF 255 \""
+# BINARY
+check "BINARY 10 ."    "output.buffers:(eval (parse \"BINARY 10 .\") *north)"     "\"1010 \""
+check "BINARY 0 ."     "output.buffers:(eval (parse \"BINARY 0 .\") *north)"      "\"0 \""
+# BASE pushes numeric base as integer
+check "BASE decimal"   "d-stack:(eval (parse \"BASE\") *north)"                   "~[10]"
+check "HEX BASE"       "d-stack:(eval (parse \"HEX BASE\") *north)"               "~[16]"
+check "BINARY BASE"    "d-stack:(eval (parse \"BINARY BASE\") *north)"            "~[2]"
+# U. is an alias for .
+check "U. decimal"     "output.buffers:(eval (parse \"42 U.\") *north)"           "\"42 \""
+check "HEX U."         "output.buffers:(eval (parse \"HEX 255 U.\") *north)"      "\"FF \""
+# base persists across word definitions
+check "HEX in word"    "output.buffers:(eval (parse \"HEX : show-hex . ; 255 show-hex\") *north)" "\"FF \""
+
+echo ""
+echo "=== Type aura output words ==="
+
+# OUR: push our ship (@p); in lib context our=0 = ~zod
+check "OUR is ~zod"    "d-stack:(eval (parse \"OUR\") *north)"                              "~[0]"
+# SHIP.: print TOS as @p
+check "SHIP. ~zod"     "output.buffers:(eval (parse \"OUR SHIP.\") *north)"                 "\"~zod \""
+check "SHIP. 256"      "output.buffers:(eval (parse \"256 SHIP.\") *north)"                 "\"~marzod \""
+# NOW: push current time (@da); in lib context now=*@da = ~2000.1.1
+check "NOW is epoch"   "d-stack:(eval (parse \"NOW\") *north)"                              "~[170.141.184.492.615.420.181.573.981.275.213.004.800]"
+check "DATE. epoch"    "output.buffers:(eval (parse \"NOW DATE.\") *north)"                 "\"~2000.1.1 \""
+# CORD.: print TOS as @t cord
+check "CORD. A"        "output.buffers:(eval (parse \"65 CORD.\") *north)"                  "\"A \""
+check "CORD. hi"       "output.buffers:(eval (parse \"0x6968 CORD.\") *north)"              "\"hi \""
+# INT.: print TOS as decimal regardless of current base
+check "INT. decimal"   "output.buffers:(eval (parse \"255 INT.\") *north)"                  "\"255 \""
+check "INT. in HEX"    "output.buffers:(eval (parse \"HEX 255 INT.\") *north)"              "\"255 \""
+# AS-SHIP / AS-DATE / AS-CORD set base; . respects it
+check "AS-SHIP ."      "output.buffers:(eval (parse \"AS-SHIP OUR .\") *north)"             "\"~zod \""
+check "AS-DATE ."      "output.buffers:(eval (parse \"AS-DATE NOW .\") *north)"             "\"~2000.1.1 \""
+check "AS-CORD ."      "output.buffers:(eval (parse \"AS-CORD 65 .\") *north)"              "\"A \""
 
 echo ""
 echo "=== Tier 13: TYPE output ==="

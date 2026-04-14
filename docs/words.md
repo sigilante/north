@@ -95,11 +95,42 @@ All words implemented as of Tier 21. Stack notation: `( before -- after )`.
 | `CELL+` | `( addr -- addr+1 )` | advance address by one cell |
 | `,` | `( n -- )` | store n at HERE and advance HERE |
 
+## Numeric Base
+
+North stores the current print base as an aura tag rather than an integer.
+`HEX`, `DECIMAL`, and `BINARY` switch the tag; `.` and `U.` respect it.
+The `BASE` word pushes the equivalent integer (10, 16, or 2) for compatibility.
+Output uses no prefix: `HEX  255 .` prints `FF `.
+
+| Word | Stack | Description |
+|---|---|---|
+| `HEX` | `( -- )` | set print base to hexadecimal (`%ux`) |
+| `DECIMAL` | `( -- )` | set print base to decimal (`%ud`) — default |
+| `BINARY` | `( -- )` | set print base to binary (`%ub`) |
+| `BASE` | `( -- n )` | push current numeric base (10, 16, or 2) |
+| `AS-DATE` | `( -- )` | set print aura to date (`%da`); `.` prints as `~YYYY.M.D` |
+| `AS-SHIP` | `( -- )` | set print aura to ship (`%p`); `.` prints as `~shipname` |
+| `AS-CORD` | `( -- )` | set print aura to cord (`%t`); `.` prints raw UTF-8 text |
+
+## Type Aura Output
+
+Words for printing typed values in their natural format, regardless of current base.
+
+| Word | Stack | Description |
+|---|---|---|
+| `INT.` | `( n -- )` | print TOS as decimal integer + space (ignores current base) |
+| `DATE.` | `( n -- )` | print TOS as `@da` date (`~YYYY.M.D...`) + space |
+| `SHIP.` | `( n -- )` | print TOS as `@p` ship name (`~shipname`) + space |
+| `CORD.` | `( n -- )` | print TOS as `@t` cord (raw UTF-8 text) + space |
+| `NOW` | `( -- n )` | push current time as `@da` atom (injected from Arvo) |
+| `OUR` | `( -- n )` | push our ship address as `@p` atom (injected from Arvo) |
+
 ## Output
 
 | Word | Stack | Description |
 |---|---|---|
-| `.` | `( n -- )` | print TOS as unsigned decimal + space |
+| `.` | `( n -- )` | print TOS unsigned in current base + space |
+| `U.` | `( u -- )` | print TOS unsigned in current base + space (alias for `.`) |
 | `TYPE` | `( addr cnt -- )` | print cnt chars from memory at addr |
 | `EMIT` | `( char -- )` | emit one character |
 | `CR` | `( -- )` | emit newline |
@@ -192,8 +223,6 @@ Handled by the Gall agent before reaching the interpreter:
 |---|---|
 | `ACCEPT` | read a line of input into a buffer |
 | `KEY` | read a single character from input |
-| `HEX` / `DECIMAL` / `BASE` | change numeric base |
-| `U.` | print TOS as unsigned, respecting BASE |
 | `MOVE` / `CMOVE` / `FILL` | bulk memory operations |
 | `EVALUATE` | evaluate a string as Forth source |
 | `POSTPONE` | compile-time: compile the compilation semantics of the next word |
