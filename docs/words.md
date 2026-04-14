@@ -118,6 +118,7 @@ Words for printing typed values in their natural format, regardless of current b
 
 | Word | Stack | Description |
 |---|---|---|
+| `INT.` | `( n -- )` | print TOS as decimal integer + space (ignores current base) |
 | `DATE.` | `( n -- )` | print TOS as `@da` date (`~YYYY.M.D...`) + space |
 | `SHIP.` | `( n -- )` | print TOS as `@p` ship name (`~shipname`) + space |
 | `CORD.` | `( n -- )` | print TOS as `@t` cord (raw UTF-8 text) + space |

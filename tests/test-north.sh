@@ -476,6 +476,9 @@ check "DATE. epoch"    "output.buffers:(eval (parse \"NOW DATE.\") *north)"     
 # CORD.: print TOS as @t cord
 check "CORD. A"        "output.buffers:(eval (parse \"65 CORD.\") *north)"                  "\"A \""
 check "CORD. hi"       "output.buffers:(eval (parse \"0x6968 CORD.\") *north)"              "\"hi \""
+# INT.: print TOS as decimal regardless of current base
+check "INT. decimal"   "output.buffers:(eval (parse \"255 INT.\") *north)"                  "\"255 \""
+check "INT. in HEX"    "output.buffers:(eval (parse \"HEX 255 INT.\") *north)"              "\"255 \""
 # AS-SHIP / AS-DATE / AS-CORD set base; . respects it
 check "AS-SHIP ."      "output.buffers:(eval (parse \"AS-SHIP OUR .\") *north)"             "\"~zod \""
 check "AS-DATE ."      "output.buffers:(eval (parse \"AS-DATE NOW .\") *north)"             "\"~2000.1.1 \""
