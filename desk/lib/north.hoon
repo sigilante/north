@@ -14,7 +14,9 @@
   ==
 +$  settings-map
   $:  state=?           ::  %.y = interpret mode (bunt), %.n = compile mode
-      base=@tas         ::  print aura: '' or 'ud'=decimal, 'ux'=hex, 'ub'=binary
+      base=@tas         ::  print aura: '' or 'ud'=decimal, 'ux'=hex, 'ub'=binary, 'da'=date, 'p'=ship, 't'=cord
+      now=@da           ::  current time; set by agent before each eval; 0 in lib context
+      our=@p            ::  our ship; set by agent before each eval; 0 (~zod) in lib context
       tin=@ud
       ntib=@ud
       here=@ud
@@ -242,12 +244,15 @@
   =/  d  (mod:ua n 2)
   =/  c=@t  ^-(@t (add:ua d 48))      ::  '0' or '1'
   (weld $(n (div:ua n 2)) ~[c])
-:: NUM-TO-BASE-TAPE - format atom in the current print aura
+:: NUM-TO-BASE-TAPE - format atom per current print aura
 ++  num-to-base-tape
   |=  [n=@ b=@tas]
   ^-  tape
   ?:  =(b 'ux')  (num-to-hex-tape n)
   ?:  =(b 'ub')  (num-to-bin-tape n)
+  ?:  =(b 'da')  (scow 'da' n)
+  ?:  =(b 'p')   (scow 'p' n)
+  ?:  =(b 't')   (trip ^-(@t n))
   (num-to-tape n)
 :: READ-CHARS - read cnt chars from stak at addr, produce tape
 ++  read-chars
@@ -530,11 +535,33 @@
   ?:  =(w 'BINARY')
     st(settings settings.st(base 'ub'))
   ?:  =(w 'BASE')
-    ::  ( -- n )  push current numeric base as an integer
+    ::  ( -- n )  push current numeric base as an integer; 0 for non-numeric auras
     =/  n  ?:  =(base.settings.st 'ux')  16
            ?:  =(base.settings.st 'ub')  2
+           ?:  =(base.settings.st 'da')  0
+           ?:  =(base.settings.st 'p')   0
            10
     st(d-stack (push ds n))
+  ::  Type aura print modes
+  ?:  =(w 'AS-DATE')   st(settings settings.st(base 'da'))
+  ?:  =(w 'AS-SHIP')   st(settings settings.st(base 'p'))
+  ?:  =(w 'AS-CORD')   st(settings settings.st(base 't'))
+  ::  Dedicated type output words (ignore current base)
+  ?:  =(w 'DATE.')
+    =^  n=@  ds  (pop ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld (scow 'da' n) ~[' ']))))
+  ?:  =(w 'SHIP.')
+    =^  n=@  ds  (pop ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld (scow 'p' n) ~[' ']))))
+  ?:  =(w 'CORD.')
+    =^  n=@  ds  (pop ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld (trip ^-(@t n)) ~[' ']))))
+  ::  NOW: push current time as @da (set by agent; 0 in lib context)
+  ?:  =(w 'NOW')
+    st(d-stack (push ds now.settings.st))
+  ::  OUR: push our ship as @p (set by agent; 0=~zod in lib context)
+  ?:  =(w 'OUR')
+    st(d-stack (push ds our.settings.st))
   ?:  =(w 'TYPE')
     ::  ( addr cnt -- )  print cnt chars from mem starting at addr
     =^  cnt=@   ds  (pop ds)

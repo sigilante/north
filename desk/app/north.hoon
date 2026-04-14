@@ -80,7 +80,9 @@
     :_  this(show-stack %.n)
     ~[[%shoe ~[sole-id] %sole [%txt "stack display off"]]]
   ::  run Forth input through the interpreter
-  =/  result  (mule |.((eval:vm (parse:vm cmd) forth)))
+  ::  inject now and our from the bowl so NOW and OUR words are current
+  =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl))
+  =/  result  (mule |.((eval:vm (parse:vm cmd) forth1)))
   ?:  ?=([%| *] result)
     =/  tanks  p.result
     =/  err=tape

@@ -108,6 +108,21 @@ Output uses no prefix: `HEX  255 .` prints `FF `.
 | `DECIMAL` | `( -- )` | set print base to decimal (`%ud`) — default |
 | `BINARY` | `( -- )` | set print base to binary (`%ub`) |
 | `BASE` | `( -- n )` | push current numeric base (10, 16, or 2) |
+| `AS-DATE` | `( -- )` | set print aura to date (`%da`); `.` prints as `~YYYY.M.D` |
+| `AS-SHIP` | `( -- )` | set print aura to ship (`%p`); `.` prints as `~shipname` |
+| `AS-CORD` | `( -- )` | set print aura to cord (`%t`); `.` prints raw UTF-8 text |
+
+## Type Aura Output
+
+Words for printing typed values in their natural format, regardless of current base.
+
+| Word | Stack | Description |
+|---|---|---|
+| `DATE.` | `( n -- )` | print TOS as `@da` date (`~YYYY.M.D...`) + space |
+| `SHIP.` | `( n -- )` | print TOS as `@p` ship name (`~shipname`) + space |
+| `CORD.` | `( n -- )` | print TOS as `@t` cord (raw UTF-8 text) + space |
+| `NOW` | `( -- n )` | push current time as `@da` atom (injected from Arvo) |
+| `OUR` | `( -- n )` | push our ship address as `@p` atom (injected from Arvo) |
 
 ## Output
 

@@ -463,6 +463,25 @@ check "HEX U."         "output.buffers:(eval (parse \"HEX 255 U.\") *north)"    
 check "HEX in word"    "output.buffers:(eval (parse \"HEX : show-hex . ; 255 show-hex\") *north)" "\"FF \""
 
 echo ""
+echo "=== Type aura output words ==="
+
+# OUR: push our ship (@p); in lib context our=0 = ~zod
+check "OUR is ~zod"    "d-stack:(eval (parse \"OUR\") *north)"                              "~[0]"
+# SHIP.: print TOS as @p
+check "SHIP. ~zod"     "output.buffers:(eval (parse \"OUR SHIP.\") *north)"                 "\"~zod \""
+check "SHIP. 256"      "output.buffers:(eval (parse \"256 SHIP.\") *north)"                 "\"~marzod \""
+# NOW: push current time (@da); in lib context now=*@da = ~2000.1.1
+check "NOW is epoch"   "d-stack:(eval (parse \"NOW\") *north)"                              "~[170.141.184.492.615.420.181.573.981.275.213.004.800]"
+check "DATE. epoch"    "output.buffers:(eval (parse \"NOW DATE.\") *north)"                 "\"~2000.1.1 \""
+# CORD.: print TOS as @t cord
+check "CORD. A"        "output.buffers:(eval (parse \"65 CORD.\") *north)"                  "\"A \""
+check "CORD. hi"       "output.buffers:(eval (parse \"0x6968 CORD.\") *north)"              "\"hi \""
+# AS-SHIP / AS-DATE / AS-CORD set base; . respects it
+check "AS-SHIP ."      "output.buffers:(eval (parse \"AS-SHIP OUR .\") *north)"             "\"~zod \""
+check "AS-DATE ."      "output.buffers:(eval (parse \"AS-DATE NOW .\") *north)"             "\"~2000.1.1 \""
+check "AS-CORD ."      "output.buffers:(eval (parse \"AS-CORD 65 .\") *north)"              "\"A \""
+
+echo ""
 echo "=== Tier 13: TYPE output ==="
 
 # TYPE ( addr cnt -- ) prints cnt chars from memory starting at addr
