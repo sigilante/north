@@ -96,6 +96,29 @@ Branching is done by adjusting `ip` via `ip-advance`.  Word dispatch uses
 `++  parse` tokenizes a tape into a `prog`.  Control-flow words are compiled with
 forward and backward offset backpatching during parsing.
 
+## Noun Literals
+
+North supports Nock-style noun literals in interpret mode using `[ ]` syntax.
+`[42]` pushes an atom-noun address; `[42 99]` pushes a cell-noun address; nesting
+is supported: `[[1 2] 3]`.
+
+**How it works:**
+1. The tokenizer (`++  tokenize-src`) treats `[` and `]` as self-delimiting — they
+   always emit as separate word tokens regardless of surrounding whitespace.  The
+   compound token `[CHAR]` is recognised as a special case and kept intact.
+2. In interpret mode, when eval sees `%word '['`, it calls `++  is-pure-noun` to
+   scan forward through the token stream.  If all tokens up to the matching `]` are
+   `%num` or nested `[ ]` pairs, the content is treated as a noun literal; otherwise
+   `[` falls through to the Tier 14 no-op (enabling `[ expr ] LITERAL` to work
+   unchanged).
+3. `++  noun-lit-list` and `++  noun-lit-one` build a token sub-sequence of
+   `make-atom` / `make-cell` calls (from `tests/nock.fs`) and pass it to a
+   recursive `eval` call.  Memory layout follows nock.fs: atoms as `[0 value]`,
+   cells as `[1 head tail]`.
+
+The noun literal feature uses the `make-atom` and `make-cell` words defined in
+`tests/nock.fs`; those words must be loaded before noun literals can be used.
+
 ## Gall Agent
 
 `app/north.hoon` wraps the interpreter in a `%shoe` agent:
@@ -152,5 +175,6 @@ North was built tier-by-tier, each tier adding a set of words or features:
 | 18 | 19 | `WORD`, `BL`, `COUNT` — text input words |
 | 19 | 20 | `IMMEDIATE` — compile-time word flag |
 | 21 | 21 | `DEFER`/`IS`, `EXIT`, `-ROT`, `CELL`, `CHARS`, `[CHAR]`, `NOOP` |
+| — | 22 | Noun literals `[42]`, `[42 99]`, `[[1 2] 3]` via `is-pure-noun` lookahead |
 
 **Next:** Nock code generation — emit Nock nouns from Forth definitions.

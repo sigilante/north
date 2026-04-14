@@ -2,15 +2,15 @@ name: CI
 
 on:
   push:
+    branches:
+      - master
     paths-ignore:
       - 'docs/**'
       - '*.md'
-      - 'blog-post-forth.md'
   pull_request:
     paths-ignore:
       - 'docs/**'
       - '*.md'
-      - 'blog-post-forth.md'
 
 jobs:
   test:
