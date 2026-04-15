@@ -89,12 +89,13 @@
   =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl, desk q.byk.bowl))
   =/  result  (mule |.((eval:vm (parse:vm cmd) forth1)))
   ?:  ?=([%| *] result)
-    =/  tanks  p.result
-    =/  err=tape
-      ?~  tanks  "error"
-      ~(ram re i.tanks)
+    =/  tanks=(list tank)  (flop p.result)
+    =/  lines=(list tape)
+      ?~  tanks  ~["error"]
+      (turn tanks |=(t=tank ~(ram re t)))
     :_  this
-    ~[[%shoe ~[sole-id] %sole [%txt (weld "! " err)]]]
+    %+  turn  lines
+    |=(l=tape [%shoe ~[sole-id] %sole [%txt (weld "! " l)]])
   =/  new    p.result
   =/  out    output.buffers.new
   =/  ds     d-stack.new

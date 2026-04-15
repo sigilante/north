@@ -256,6 +256,18 @@
   ?:  =(b 't')   (trip ^-(@t n))
   (num-to-tape n)
 :: SPLIT-ON-SLASH - split a tape on '/' dropping empty segments (for Clay path construction)
+::  REWRITE-INCLUDE-LINE - rewrite leading `INCLUDE <path>` to `S" <path>" INCLUDED`
+::  Mirrors the agent-level sugar so nested INCLUDE inside a loaded file works.
+::  Requires INCLUDE at column 0 (no leading whitespace); use `S" ..." INCLUDED`
+::  as the stack-form fallback.
+++  rewrite-include-line
+  |=  c=cord
+  ^-  cord
+  =/  t=tape  (trip c)
+  ?.  (gte:ua (lent t) 8)  c
+  ?.  =((cuss (scag 8 t)) "INCLUDE ")  c
+  (crip :(weld "S\" " (slag 8 t) "\" INCLUDED"))
+::
 ++  split-on-slash
   |=  t=tape
   ^-  (list tape)
@@ -263,7 +275,7 @@
   =/  cur=tape  ~
   |-
   ?~  t
-    (flop ?~(cur segs [cur segs]))
+    (flop ?~(cur segs [(flop `tape`cur) segs]))
   ?:  =('/' i.t)
     ?~  cur
       $(t t.t)
@@ -603,8 +615,13 @@
       %+  welp
       ~[(scot %p our.settings.st) desk.settings.st (scot %da now.settings.st)]
       (snoc segs %fs)
+    ::  existence check — avoid hard scry bail that kills the agent
+    ?.  .^(? %cu pax)
+      ~|([%include-not-found (crip path-tape)] !!)
     =/  src=wain  .^(wain %cx pax)
-    =/  full=tape  (zing (turn src |=(=cord (weld (trip cord) " "))))
+    ::  rewrite `INCLUDE <path>` sugar on each line before joining
+    =/  rewritten=wain  (turn src rewrite-include-line)
+    =/  full=tape  (zing (turn rewritten |=(=cord (weld (trip cord) " "))))
     (eval (parse full) st(d-stack ds))
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
