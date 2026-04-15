@@ -60,8 +60,8 @@
 ++  on-connect
   |=  =sole-id:shoe
   ^-  (quip card _this)
-  :_  this
-  ~[[%shoe ~[sole-id] %sole [%pro [%.y %$ ~['> ']]]]]
+  ::  shoe's on-watch already emits the initial %pro; don't double it
+  `this
 ::
 ++  on-disconnect
   |=  =sole-id:shoe
