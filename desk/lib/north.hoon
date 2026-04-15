@@ -17,6 +17,7 @@
       base=@tas         ::  print aura: '' or 'ud'=decimal, 'ux'=hex, 'ub'=binary, 'da'=date, 'p'=ship, 't'=cord
       now=@da           ::  current time; set by agent before each eval; 0 in lib context
       our=@p            ::  our ship; set by agent before each eval; 0 (~zod) in lib context
+      desk=@tas         ::  desk name for INCLUDE/INCLUDED Clay scries; set by agent
       tin=@ud
       ntib=@ud
       here=@ud
@@ -254,6 +255,32 @@
   ?:  =(b 'p')   (scow 'p' n)
   ?:  =(b 't')   (trip ^-(@t n))
   (num-to-tape n)
+:: SPLIT-ON-SLASH - split a tape on '/' dropping empty segments (for Clay path construction)
+::  REWRITE-INCLUDE-LINE - rewrite leading `INCLUDE <path>` to `S" <path>" INCLUDED`
+::  Mirrors the agent-level sugar so nested INCLUDE inside a loaded file works.
+::  Requires INCLUDE at column 0 (no leading whitespace); use `S" ..." INCLUDED`
+::  as the stack-form fallback.
+++  rewrite-include-line
+  |=  c=cord
+  ^-  cord
+  =/  t=tape  (trip c)
+  ?.  (gte:ua (lent t) 8)  c
+  ?.  =((cuss (scag 8 t)) "INCLUDE ")  c
+  (crip :(weld "S\" " (slag 8 t) "\" INCLUDED"))
+::
+++  split-on-slash
+  |=  t=tape
+  ^-  (list tape)
+  =/  segs=(list tape)  ~
+  =/  cur=tape  ~
+  |-
+  ?~  t
+    (flop ?~(cur segs [(flop `tape`cur) segs]))
+  ?:  =('/' i.t)
+    ?~  cur
+      $(t t.t)
+    $(t t.t, segs [(flop cur) segs], cur ~)
+  $(t t.t, cur [i.t cur])
 :: READ-CHARS - read cnt chars from stak at addr, produce tape
 ++  read-chars
   ::  Extract cnt chars from stak starting at addr, produce tape
@@ -571,6 +598,31 @@
     =^  addr=@  ds  (pop ds)
     =/  chars  (read-chars addr cnt mem.st)
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st chars)))
+  ?:  =(w 'EVALUATE')
+    ::  ( addr cnt -- )  parse and eval string from memory
+    =^  cnt=@   ds  (pop ds)
+    =^  addr=@  ds  (pop ds)
+    =/  src=tape  (read-chars addr cnt mem.st)
+    =/  st1  st(d-stack ds)
+    (eval (parse src) st1)
+  ?:  =(w 'INCLUDED')
+    ::  ( addr cnt -- )  load and eval a Forth source file from Clay
+    =^  cnt=@   ds  (pop ds)
+    =^  addr=@  ds  (pop ds)
+    =/  path-tape=tape  (read-chars addr cnt mem.st)
+    =/  segs=(list @ta)  (turn (split-on-slash path-tape) crip)
+    =/  pax=path
+      %+  welp
+      ~[(scot %p our.settings.st) desk.settings.st (scot %da now.settings.st)]
+      (snoc segs %fs)
+    ::  existence check — avoid hard scry bail that kills the agent
+    ?.  .^(? %cu pax)
+      ~|([%include-not-found (crip path-tape)] !!)
+    =/  src=wain  .^(wain %cx pax)
+    ::  rewrite `INCLUDE <path>` sugar on each line before joining
+    =/  rewritten=wain  (turn src rewrite-include-line)
+    =/  full=tape  (zing (turn rewritten |=(=cord (weld (trip cord) " "))))
+    (eval (parse full) st(d-stack ds))
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)
   ?:  =(w 'I')

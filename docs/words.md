@@ -139,6 +139,9 @@ Words for printing typed values in their natural format, regardless of current b
 | `BL` | `( -- 32 )` | push ASCII space character code |
 | `." text"` | `( -- )` | (compile-time) emit string literal at runtime |
 | `S" text"` | `( -- addr cnt )` | push string address and count |
+| `EVALUATE` | `( addr cnt -- )` | parse and eval string from memory as Forth source |
+| `INCLUDED` | `( addr cnt -- )` | load and eval a `.fs` file from Clay by path string (e.g. `S" /lib/utils" INCLUDED`) |
+| `INCLUDE` | parsing word | `INCLUDE /lib/utils` — load a `.fs` file from the current desk (sugar for `S" ..." INCLUDED`) |
 
 ## Dictionary / Execution
 
@@ -224,7 +227,6 @@ Handled by the Gall agent before reaching the interpreter:
 | `ACCEPT` | read a line of input into a buffer |
 | `KEY` | read a single character from input |
 | `MOVE` / `CMOVE` / `FILL` | bulk memory operations |
-| `EVALUATE` | evaluate a string as Forth source |
 | `POSTPONE` | compile-time: compile the compilation semantics of the next word |
 | `[']` | compile-time tick — push xt of a word at compile time |
 | `REFILL` | refill the input buffer |

@@ -60,8 +60,8 @@
 ++  on-connect
   |=  =sole-id:shoe
   ^-  (quip card _this)
-  :_  this
-  ~[[%shoe ~[sole-id] %sole [%pro [%.y %$ ~['> ']]]]]
+  ::  shoe's on-watch already emits the initial %pro; don't double it
+  `this
 ::
 ++  on-disconnect
   |=  =sole-id:shoe
@@ -79,17 +79,23 @@
   ?:  =(wu 'SOFF')
     :_  this(show-stack %.n)
     ~[[%shoe ~[sole-id] %sole [%txt "stack display off"]]]
+  ::  INCLUDE <path> is parsing sugar for S" <path>" INCLUDED
+  =/  cmd
+    ?.  =((cuss (scag 8 cmd)) "INCLUDE ")
+      cmd
+    :(weld "S\" " (slag 8 cmd) "\" INCLUDED")
   ::  run Forth input through the interpreter
-  ::  inject now and our from the bowl so NOW and OUR words are current
-  =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl))
+  ::  inject now, our, and desk from the bowl so NOW/OUR/INCLUDE work correctly
+  =/  forth1  forth(settings settings.forth(now now.bowl, our our.bowl, desk q.byk.bowl))
   =/  result  (mule |.((eval:vm (parse:vm cmd) forth1)))
   ?:  ?=([%| *] result)
-    =/  tanks  p.result
-    =/  err=tape
-      ?~  tanks  "error"
-      ~(ram re i.tanks)
+    =/  tanks=(list tank)  (flop p.result)
+    =/  lines=(list tape)
+      ?~  tanks  ~["error"]
+      (turn tanks |=(t=tank ~(ram re t)))
     :_  this
-    ~[[%shoe ~[sole-id] %sole [%txt (weld "! " err)]]]
+    %+  turn  lines
+    |=(l=tape [%shoe ~[sole-id] %sole [%txt (weld "! " l)]])
   =/  new    p.result
   =/  out    output.buffers.new
   =/  ds     d-stack.new
