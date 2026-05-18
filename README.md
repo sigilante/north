@@ -9,10 +9,36 @@ runtime.  The long-term goal is a self-hosting Forth that compiles to Nock nouns
 North aims for broad ANSI Standard Forth compatibility, adapting features like
 memory management to the noun-based Nock model where appropriate.
 
+## Installation
+
+On a local fakeship (steps assume your pier lives at `~/urbit/zod`; adjust
+paths to match your setup).  From the ship's dojo:
+
+```
+|new-desk %north
+|mount %north
+```
+
+In a shell, copy the desk source into the mounted directory:
+
+```sh
+cp -r path/to/north/desk/* ~/urbit/zod/north/
+```
+
+Back in the dojo, commit and install:
+
+```
+|commit %north
+|install our %north
+```
+
+For shared or hosted ships without filesystem access to the pier, distribute
+the desk via the usual Urbit channels (a syndicate merge, a glob, etc.).
+
 ## Quick Start
 
-North runs as a Gall `%shoe` agent on an Urbit ship.  After installing the desk,
-connect to the REPL from the dojo:
+North runs as a Gall `%shoe` agent.  After installing the desk, connect to
+the REPL from the dojo:
 
 ```
 |dojo/link %north
@@ -30,6 +56,28 @@ SOFF            \ disable stack display
 ```
 
 Errors are caught and displayed as `! <message>` without crashing the agent.
+
+## Jupyter notebooks
+
+You can also drive North from a Jupyter notebook via
+[Jupytur](https://github.com/sigilante/jupytur):
+
+```sh
+git clone https://github.com/sigilante/jupytur.git
+cd jupytur && pip install -e .
+jupytur-install --variant north
+jupyter notebook
+```
+
+Pick **Jupytur (North)** from the kernel picker, then configure the connection
+in the first cell:
+
+```
+%config url=http://localhost:8080 ship=zod code=<+code> agent=north
+```
+
+The kernel clears the Forth data stack on every connect, so each notebook
+starts with an empty stack.
 
 ## Documentation
 
