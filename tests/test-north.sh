@@ -4,12 +4,18 @@
 # Later: convert to in-Urbit threads
 
 LIB="desk/lib/north.hoon"
+CORE="desk/lib/core.fs"
 PASS=0
 FAIL=0
 # Forth TRUE = max direct atom in Vere64 (2^63-1 = 0x7fff.ffff.ffff.ffff)
 # Hoon requires dots in large decimal literals and prints them the same way
 T="9.223.372.036.854.775.807"
 F=0
+
+# Flatten core.fs into a single-line tape literal, escaping backslash and quote
+# so it can be embedded inside a hoon "..." tape. Paren comments in core.fs
+# survive the newline-to-space collapse (unlike \ line comments would).
+CORE_SRC=$(sed 's|\\|\\\\|g; s|"|\\"|g' "$CORE" | tr '\n' ' ')
 
 north-eval() {
   local raw
@@ -954,6 +960,41 @@ check "DEFER IS"     "d-stack:(eval (parse \": double 2 * ; DEFER op  ' double I
 check "DEFER IS re"  "d-stack:(eval (parse \": sq dup * ; : double 2 * ; DEFER f  ' sq IS f  3 f  ' double IS f  4 f\") *north)" "~[8 9]"
 # Mutual recursion via DEFER: even?/odd? ping-pong (drop arg before returning result)
 check "DEFER mutual" "d-stack:(eval (parse \"DEFER is-even  : is-odd  dup 0 = IF drop 0 EXIT THEN 1- is-even ;  : is-even-impl  dup 0 = IF drop 1 EXIT THEN 1- is-odd ;  ' is-even-impl IS is-even  4 is-even\") *north)" "~[1]"
+
+echo ""
+echo "=== Core stdlib (desk/lib/core.fs) ==="
+
+# Comparison shorthands
+check "<= less"       "d-stack:(eval (parse \"$CORE_SRC 3 5 <=\") *north)"   "~[$T]"
+check "<= equal"      "d-stack:(eval (parse \"$CORE_SRC 5 5 <=\") *north)"   "~[$T]"
+check "<= greater"    "d-stack:(eval (parse \"$CORE_SRC 7 5 <=\") *north)"   "~[$F]"
+check ">= less"       "d-stack:(eval (parse \"$CORE_SRC 3 5 >=\") *north)"   "~[$F]"
+check ">= equal"      "d-stack:(eval (parse \"$CORE_SRC 5 5 >=\") *north)"   "~[$T]"
+check ">= greater"    "d-stack:(eval (parse \"$CORE_SRC 7 5 >=\") *north)"   "~[$T]"
+check "0<> zero"      "d-stack:(eval (parse \"$CORE_SRC 0 0<>\") *north)"    "~[$F]"
+check "0<> nonzero"   "d-stack:(eval (parse \"$CORE_SRC 7 0<>\") *north)"    "~[$T]"
+check "U<= less"      "d-stack:(eval (parse \"$CORE_SRC 3 5 U<=\") *north)"  "~[$T]"
+check "U<= equal"     "d-stack:(eval (parse \"$CORE_SRC 5 5 U<=\") *north)"  "~[$T]"
+check "U<= greater"   "d-stack:(eval (parse \"$CORE_SRC 7 5 U<=\") *north)"  "~[$F]"
+check "U>= less"      "d-stack:(eval (parse \"$CORE_SRC 3 5 U>=\") *north)"  "~[$F]"
+check "U>= equal"     "d-stack:(eval (parse \"$CORE_SRC 5 5 U>=\") *north)"  "~[$T]"
+check "U>= greater"   "d-stack:(eval (parse \"$CORE_SRC 7 5 U>=\") *north)"  "~[$T]"
+
+# WITHIN: true iff lo <= n < hi
+check "WITHIN low"    "d-stack:(eval (parse \"$CORE_SRC 5 5 10 WITHIN\") *north)"  "~[$T]"
+check "WITHIN mid"    "d-stack:(eval (parse \"$CORE_SRC 7 5 10 WITHIN\") *north)"  "~[$T]"
+check "WITHIN high"   "d-stack:(eval (parse \"$CORE_SRC 10 5 10 WITHIN\") *north)" "~[$F]"
+check "WITHIN under"  "d-stack:(eval (parse \"$CORE_SRC 4 5 10 WITHIN\") *north)"  "~[$F]"
+check "WITHIN over"   "d-stack:(eval (parse \"$CORE_SRC 11 5 10 WITHIN\") *north)" "~[$F]"
+
+# Numeric helpers
+check "SQUARED 0"     "d-stack:(eval (parse \"$CORE_SRC 0 SQUARED\") *north)"  "~[0]"
+check "SQUARED 7"     "d-stack:(eval (parse \"$CORE_SRC 7 SQUARED\") *north)"  "~[49]"
+check "CUBED 0"       "d-stack:(eval (parse \"$CORE_SRC 0 CUBED\") *north)"    "~[0]"
+check "CUBED 3"       "d-stack:(eval (parse \"$CORE_SRC 3 CUBED\") *north)"    "~[27]"
+
+# ?  fetch-and-print: allot a cell, store 42, then ? prints it via output buffer
+check "? prints"      "output.buffers:(eval (parse \"$CORE_SRC 1 ALLOT  42 0 !  0 ?\") *north)"  '"42 "'
 
 echo ""
 echo "=== Results ==="
