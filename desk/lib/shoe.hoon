@@ -1,5 +1,17 @@
 ::  shoe: console application library
 ::
+::    VENDORED COPY.  This is pkg/base-dev/lib/shoe.hoon from urbit/urbit
+::    master, plus three deltas:
+::
+::      1. /x/sole/sessions scry            (urbit/urbit#7379)
+::      2. +on-leave session reap and the   (urbit/urbit#7416)
+::         +on-disconnect:og call
+::      3. the %eval-command poke handler   (no upstream PR)
+::
+::    Drop 1 and 2 from this file once they land in base; re-vendor from
+::    base and re-apply 3.  Delta 3 is what /app/caderno needs and has no
+::    upstream equivalent: see the comment on the handler in +on-poke.
+::
 ::    /lib/sole: draw some characters
 ::    /lib/shoe: draw the rest of the fscking app
 ::
@@ -235,6 +247,35 @@
   ++  on-poke
     |=  [=mark =vase]
     ^-  (quip card:agent:gall agent:gall)
+    ::  %eval-command: programmatic execution, bypasses the keystroke buffer
+    ::
+    ::    The caller must already hold a subscription to /sole/[ship]/[ses]
+    ::    (which registers the session).  Results arrive as %sole-effect
+    ::    facts on that subscription; the %pro emitted below signals that the
+    ::    command has finished.
+    ::
+    ::    That %pro is the whole point.  Driving the REPL through %sole-action
+    ::    gives a client no end-of-output marker: +run-command's %nex and
+    ::    buffer-clear %det are consed AHEAD of +on-command's cards, and
+    ::    /lib/shoe otherwise emits %pro only from +on-watch.  A client with a
+    ::    wall clock can time out on idle; an in-Arvo client cannot, so it
+    ::    needs an explicit signal.
+    ::
+    ?:  ?=(%eval-command mark)
+      =+  !<([ses=@ta src=tape] vase)
+      =/  =sole-id  [our.bowl ses]
+      ?>  (~(has by soles) sole-id)
+      =/  res=(unit [? cmd=command-type])
+        %+  rust  src
+        (command-parser:og sole-id)
+      ?~  res
+        :_  this
+        (deal ~[[%shoe [sole-id]~ %sole %bel ~]])
+      =^  cards  shoe  (on-command:og sole-id cmd.u.res)
+      =/  pro=card  [%shoe [sole-id]~ %sole %pro & dap.bowl "> "]
+      :_  this
+      (deal (snoc cards pro))
+    ::  pass non-%sole-action pokes to the inner app
     ?.  ?=(%sole-action mark)
       =^  cards  shoe  (on-poke:og mark vase)
       [(deal cards) this]
@@ -368,12 +409,26 @@
   ++  on-leave
     |=  =path
     ^-  (quip card:agent:gall agent:gall)
-    =^  cards  shoe  (on-leave:og path)
+    ::  mirror +on-watch: sole paths belong to us, everything else to the app.
+    ::  a sole-id is single-tenant (+on-watch resets its $sole-share, so a
+    ::  second subscriber would clobber the first), so the first leave reaps.
+    ::
+    ?~  sole-id=(path-to-id:sole path)
+      =^  cards  shoe  (on-leave:og path)
+      [(deal cards) this]
+    =.  soles  (~(del by soles) u.sole-id)
+    =^  cards  shoe  (on-disconnect:og u.sole-id)
     [(deal cards) this]
   ::
   ++  on-peek
     |=  =path
     ^-  (unit (unit cage))
+    ?:  =(/x/sole/sessions path)
+      :^    ~
+          ~
+        %sole-sessions
+      !>  ^-  (set sole-id)
+      ~(key by soles)
     ?.  =(/x/dbug/state path)  (on-peek:og path)
     ``noun+(slop on-save:og !>(shoe=state))
   ::
