@@ -920,8 +920,19 @@
       ::  Append string text directly to output buffer
       $(ip +(ip), st st(buffers buffers.st(output (weld output.buffers.st text.tok))))
   ==
-:: Tier 1: Unsigned Arithmetic
-++  ua
+::  Tier 1: Unsigned Arithmetic
+::
+::    +ua-reference derives unsigned arithmetic from Nock's successor operator
+::    alone.  That derivation is the point of this tier and is kept verbatim.
+::
+::    It is not what should run.  Every arm is O(n) or worse in operand
+::    magnitude, and +dec is called inside the traversal step of +snag,
+::    +snag-prog, +snap, +patch-prog, +reap and +tape-reap, turning each of
+::    those O(n) walks into O(n^2) -- and the DO-loop termination check into an
+::    O(N^3) floor with an empty body.  See #34.
+::
+::    So +ua below delegates to the stdlib, and the proof keeps its own name.
+++  ua-reference
   |%
   ++  inc
     |=  a=@  ^-  @
@@ -1002,6 +1013,73 @@
     |=  a=@  ^-  @
     ?:  =(0 a)  1
     (mul 2 $(a (dec a)))
+  ++  rsh
+    |=  [a=@ b=@]
+    (div b (bex (mul (bex a) 1)))
+  ++  met
+    |=  [a=@ b=@]  ^-  @
+    =+  c=0
+    |-
+    ?:  =(0 b)  c
+    $(b (rsh a b), c +(c))
+  ++  even
+    |=  a=@  ^-  ?
+    =(0 (cut 0 [0 1] a))
+  --
+
+++  ua
+  ::  Delegates to Hoon's jet-matched arithmetic.  Same results, same crash
+  ::  behaviour on decrement/subtract underflow and division by zero; the
+  ::  difference is that these fire jets and +ua-reference does not.
+  ::
+  ::  ^-prefixed wings reach past this core's own arms to the stdlib ones they
+  ::  shadow.  +inc, +eq, +zeq and +even were already O(1) and are unchanged;
+  ::  +rsh and +met are left in terms of this core's arms, so they inherit the
+  ::  speedup without a change in meaning.
+  |%
+  ++  inc
+    |=  a=@  ^-  @
+    +(a)
+  ++  eq
+    |=  [a=@ b=@]  ^-  ?
+    =(a b)
+  ++  zeq
+    |=  a=@  ^-  ?
+    =(0 a)
+  ++  dec
+    |=  a=@  ^-  @
+    (^dec a)
+  ++  add
+    |=  [a=@ b=@]  ^-  @
+    (^add a b)
+  ++  lt
+    |=  [a=@ b=@]  ^-  ?
+    (lth a b)
+  ++  gt
+    |=  [a=@ b=@]  ^-  ?
+    (gth a b)
+  ++  lte
+    |=  [a=@ b=@]  ^-  ?
+    (^lte a b)
+  ++  gte
+    |=  [a=@ b=@]  ^-  ?
+    (^gte a b)
+  ++  sub
+    |=  [a=@ b=@]  ^-  @
+    (^sub a b)
+  ++  mul
+    |:  [a=`@`1 b=`@`1]  ^-  @
+    (^mul a b)
+  :: divmod returns [quotient remainder]
+  ++  divmod
+    |:  [a=`@`1 b=`@`1]  ^-  [p=@ q=@]
+    (dvr a b)
+  ++  div
+    |:  [a=`@`1 b=`@`1]  ^-  @
+    (^div a b)
+  ++  bex
+    |=  a=@  ^-  @
+    (^bex a)
   ++  rsh
     |=  [a=@ b=@]
     (div b (bex (mul (bex a) 1)))
