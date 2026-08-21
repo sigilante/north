@@ -676,7 +676,12 @@
     =/  src=wain  .^(wain %cx pax)
     ::  rewrite `INCLUDE <path>` sugar on each line before joining
     =/  rewritten=wain  (turn src rewrite-include-line)
-    =/  full=tape  (zing (turn rewritten |=(=cord (weld (trip cord) " "))))
+    ::  Join with newlines, not spaces.  +strip-line-comments runs from a `\`
+    ::  to the next newline; joining with spaces leaves none, so the first
+    ::  line comment in the file swallows everything after it and the include
+    ::  silently defines nothing.  +split-ws counts 10 as whitespace, so
+    ::  newline-joined source tokenizes identically.
+    =/  full=tape  (zing (turn rewritten |=(=cord (weld (trip cord) "\0a"))))
     (eval (parse full) st(d-stack ds))
   ::  Tier 11: Counted loop control words
   ::  r-stack layout inside DO loop: [..., limit, index] (index=TOS)

@@ -1051,6 +1051,18 @@ check "NOUN. consumes"      "d-stack:(eval (parse \"[ 1 2 ] NOUN.\") *north)"   
 check "guard: word inside" "d-stack:(eval (parse \": f  [ 2 3 + ] LITERAL ;  f\") *north)"  "~[5]"
 
 echo ""
+echo "=== INCLUDED: line comments ==="
+
+# +strip-line-comments runs from a \ to the next newline.  +INCLUDED reads a
+# Clay file as a wain and joins it before parsing, so it must join with
+# newlines: joined with spaces there are none left, the first line comment
+# swallows the rest of the file, and the include reports ok while defining
+# nothing.  INCLUDED itself needs Clay and cannot run in this harness; these
+# pin the invariant it depends on.
+check "comment ends at newline"  '(parse "\\ note\0a5")'  "~[[%num n=5]]"
+check "comment eats rest of line" '(parse "\\ note 5")'    "~"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
