@@ -156,8 +156,39 @@ Words for printing typed values in their natural format, regardless of current b
 | `DATE.` | `( n -- )` | print TOS as `@da` date (`~YYYY.M.D...`) + space |
 | `SHIP.` | `( n -- )` | print TOS as `@p` ship name (`~shipname`) + space |
 | `CORD.` | `( n -- )` | print TOS as `@t` cord (raw UTF-8 text) + space |
+| `NOUN.` | `( noun -- )` | print TOS as a noun, cells included, + space |
 | `NOW` | `( -- n )` | push current time as `@da` atom (injected from Arvo) |
 | `OUR` | `( -- n )` | push our ship address as `@p` atom (injected from Arvo) |
+
+## Noun Literals
+
+The stack is `(list *)`, so it holds Urbit nouns, not just atoms.  Bracket
+syntax builds one:
+
+```
+[ 1 2 3 ]            \  [1 [2 3]], printed [1 2 3]
+[ 1 [ 2 3 ] 4 ]      \  nests
+[ [ 1 2 ] [ 3 4 ] ]  \  [[1 2] [3 4]]
+```
+
+Elements are pushed left to right and right-folded by `MAKE-CELL`, so `n`
+elements produce `n-1` cells.
+
+| Word | Stack | Description |
+|---|---|---|
+| `MAKE-ATOM` | `( n -- n )` | no-op; emitted by the parser after each literal atom |
+| `MAKE-CELL` | `( a b -- [a b] )` | cons the top two nouns |
+
+Both are emitted by `+parse`; you rarely write them by hand.
+
+The stack shuffling words (`DUP`, `DROP`, `SWAP`, `OVER`, `ROT`) are
+structural and carry cells unchanged.  Words that need a number — `.`, `+`,
+and friends — still require an atom and fail loudly on a cell.  Use `NOUN.`
+to print one.
+
+`[` and `]` remain the Tier 14 compile-mode words.  A bracket group is only
+read as a noun literal when it contains nothing but numbers and nested
+brackets, so `[ 2 3 + ] LITERAL` still means compile-time evaluation.
 
 ## Output
 
