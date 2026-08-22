@@ -523,6 +523,16 @@
     st(d-stack (push ds forth-true))
   ?:  =(w 'FALSE')
     st(d-stack (push ds 0))
+  ?:  =(w 'S<')
+    ::  ( a b -- flag )  signed less-than on ZigZag values.  `<` is unsigned.
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((lt:zz a b) forth-true 0)))
+  ?:  =(w 'S>')
+    ::  ( a b -- flag )  signed greater-than on ZigZag values.
+    =^  b=@  ds  (pop ds)
+    =^  a=@  ds  (pop ds)
+    st(d-stack (push ds ?:((gt:zz a b) forth-true 0)))
   ?:  =(w 'U<')
     =^  b=@  ds  (pop ds)
     =^  a=@  ds  (pop ds)
@@ -586,6 +596,13 @@
   ?:  =(w 'INT.')
     =^  n=@  ds  (pop ds)
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld (num-to-tape n) ~[' ']))))
+  ?:  =(w 'S.')
+    ::  ( n -- )  print TOS as a signed integer, decoding ZigZag.  `.` prints
+    ::  the raw atom; this prints what the signed word set takes it to mean.
+    =^  n=@  ds  (pop ds)
+    =/  d  (decode:zz n)
+    =/  str=tape  ?:(-.d (num-to-tape +.d) ['-' (num-to-tape +.d)])
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld str ~[' ']))))
   ::  NOW: push current time as @da (set by agent; 0 in lib context)
   ?:  =(w 'NOW')
     st(d-stack (push ds now.settings.st))
@@ -1404,11 +1421,33 @@
 ++  parse-num
   |=  t=tape
   ^-  (unit @ud)
-  =/  h  (parse-hex t)
-  ?^  h  h
-  =/  b  (parse-bin t)
-  ?^  b  b
-  (parse-dec t)
+  |^  ::  -N is a negative literal, and evaluates to the ZigZag encoding of
+      ::  -N -- the representation the signed word set (NEGATE, ABS, 0<, 0>,
+      ::  S., S<, S>) reads.  Without this there is no literal syntax that
+      ::  reaches that representation at all.
+      ::
+      ::  Note the asymmetry, which is inherited and not introduced here:
+      ::  positive literals are raw, so `5` is the atom 5, which the signed
+      ::  words read as ZigZag -3.  `-5` is the atom 9.  Use S. to see what
+      ::  any atom means as a signed value.
+      ::
+      ::  A bare "-" is subtraction and "-ROT" is a word; both fall through,
+      ::  because the remainder has to parse as a number for this to fire.
+      ?.  ?&(?=(^ t) =('-' i.t) ?=(^ t.t))  (unsigned t)
+      =/  m  (unsigned t.t)
+      ?~  m  ~
+      ?:  =(0 u.m)  `0
+      `(encode:zz %.n u.m)
+  ::
+  ++  unsigned
+    |=  s=tape
+    ^-  (unit @ud)
+    =/  h  (parse-hex s)
+    ?^  h  h
+    =/  b  (parse-bin s)
+    ?^  b  b
+    (parse-dec s)
+  --
 :: IS-PURE-NOUN - check if tokens from start-ip to matching ] are all numbers/nested brackets
 ++  is-pure-noun
   |=  [p=prog start-ip=@]

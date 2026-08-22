@@ -956,6 +956,34 @@ check "DEFER IS re"  "d-stack:(eval (parse \": sq dup * ; : double 2 * ; DEFER f
 check "DEFER mutual" "d-stack:(eval (parse \"DEFER is-even  : is-odd  dup 0 = IF drop 0 EXIT THEN 1- is-even ;  : is-even-impl  dup 0 = IF drop 1 EXIT THEN 1- is-odd ;  ' is-even-impl IS is-even  4 is-even\") *north)" "~[1]"
 
 echo ""
+echo "=== Tier 2: reaching the signed representation ==="
+
+# -N is a negative literal and evaluates to the ZigZag encoding of -N.
+# ZigZag: 0 -> 0, +n -> 2n, -n -> 2n-1.  So -5 is the atom 9.
+check "neg literal"      "d-stack:(eval (parse \"-5\") *north)"        "~[9]"
+check "neg literal 1"    "d-stack:(eval (parse \"-1\") *north)"        "~[1]"
+check "neg literal zero" "d-stack:(eval (parse \"-0\") *north)"        "~[0]"
+# positive literals stay raw -- 5 is the atom 5, not the encoding of +5
+check "pos literal raw"  "d-stack:(eval (parse \"5\") *north)"         "~[5]"
+# a bare - is still subtraction, and -ROT is still a word
+check "bare minus word"  "d-stack:(eval (parse \"7 3 -\") *north)"      "~[4]"
+check "-ROT still word"  "d-stack:(eval (parse \"1 2 3 -ROT\") *north)" "~[2 1 3]"
+
+# S. prints what the signed word set takes an atom to mean
+check "S. negative"      "output.buffers:(eval (parse \"-5 S.\") *north)"           "\"-5 \""
+check "S. positive"      "output.buffers:(eval (parse \"-5 NEGATE S.\") *north)"    "\"5 \""
+check "S. zero"          "output.buffers:(eval (parse \"-0 S.\") *north)"           "\"0 \""
+# ABS(NEGATE(x)) = x -- the identity that had no reachable spelling before
+check "abs negate id"    "output.buffers:(eval (parse \"-5 NEGATE ABS S.\") *north)" "\"5 \""
+check "abs of negative"  "output.buffers:(eval (parse \"-5 ABS S.\") *north)"        "\"5 \""
+
+# S< / S> are signed; < / > remain unsigned and are unchanged
+check "S< true"          "d-stack:(eval (parse \"-5 -3 S<\") *north)"   "~[$T]"
+check "S< false"         "d-stack:(eval (parse \"-3 -5 S<\") *north)"   "~[$F]"
+check "S> true"          "d-stack:(eval (parse \"-3 -5 S>\") *north)"   "~[$T]"
+check "< stays unsigned" "d-stack:(eval (parse \"2 5 <\") *north)"      "~[$T]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
