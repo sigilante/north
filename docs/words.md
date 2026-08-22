@@ -47,8 +47,8 @@ All words implemented as of Tier 21. Stack notation: `( before -- after )`.
 | `1-` | `( n -- n-1 )` | decrement |
 | `2*` | `( n -- n*2 )` | left shift by 1 |
 | `2/` | `( n -- n/2 )` | right shift by 1 |
-| `NEGATE` | `( n -- -n )` | signed negate |
-| `ABS` | `( n -- \|n\| )` | absolute value |
+| `NEGATE` | `( n -- -n )` | signed negate, on a ZigZag value (see Signed Values) |
+| `ABS` | `( n -- \|n\| )` | absolute value, on a ZigZag value |
 | `MAX` | `( a b -- max )` | maximum |
 | `MIN` | `( a b -- min )` | minimum |
 
@@ -58,13 +58,47 @@ All words implemented as of Tier 21. Stack notation: `( before -- after )`.
 |---|---|---|
 | `=` | `( a b -- flag )` | equal |
 | `<>` | `( a b -- flag )` | not equal |
-| `<` | `( a b -- flag )` | signed less-than |
-| `>` | `( a b -- flag )` | signed greater-than |
+| `<` | `( a b -- flag )` | **unsigned** less-than |
+| `>` | `( a b -- flag )` | **unsigned** greater-than |
+| `S<` | `( a b -- flag )` | signed less-than, on ZigZag values |
+| `S>` | `( a b -- flag )` | signed greater-than, on ZigZag values |
 | `0=` | `( n -- flag )` | zero test |
-| `0<` | `( n -- flag )` | negative test (signed) |
-| `0>` | `( n -- flag )` | positive test (signed) |
-| `U<` | `( a b -- flag )` | unsigned less-than |
-| `U>` | `( a b -- flag )` | unsigned greater-than |
+| `0<` | `( n -- flag )` | negative test, on a ZigZag value |
+| `0>` | `( n -- flag )` | positive test, on a ZigZag value |
+| `U<` | `( a b -- flag )` | unsigned less-than (currently identical to `<`) |
+| `U>` | `( a b -- flag )` | unsigned greater-than (currently identical to `>`) |
+
+## Signed Values
+
+North's stack holds unsigned atoms. The signed word set — `NEGATE`, `ABS`,
+`0<`, `0>`, `S<`, `S>` — reads an atom as a **ZigZag** encoding:
+
+| signed | 0 | +1 | -1 | +2 | -2 | +3 | -3 |
+|---|---|---|---|---|---|---|---|
+| atom | 0 | 2 | 1 | 4 | 3 | 6 | 5 |
+
+Write a negative value with a `-N` literal, which evaluates to that encoding,
+and read one back with `S.`:
+
+```
+-5 S.              \  -5
+-5 NEGATE S.       \  5
+-5 NEGATE ABS S.   \  5
+-5 -3 S<           \  true
+```
+
+Two things to be aware of, both inherited from the representation rather than
+chosen:
+
+- **Positive literals are raw.** `5` is the atom 5, not the encoding of +5.
+  The signed words therefore read `5` as -3. Only `-N` literals produce an
+  encoded value. Use `S.` to see what any atom means as a signed number.
+- **`.` prints the raw atom**, not the signed reading. `-5 .` prints `9`;
+  `-5 S.` prints `-5`.
+
+`<` and `>` are unsigned despite the ANS convention, because the example
+programs and the existing tests depend on that; `S<` and `S>` are the signed
+pair.
 | `TRUE` | `( -- forth-true )` | canonical true flag |
 | `FALSE` | `( -- 0 )` | canonical false flag |
 
