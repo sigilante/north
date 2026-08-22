@@ -28,6 +28,11 @@
       last-def=cord     ::  name of most recently : ... ; defined word (for IMMEDIATE)
       throw-val=@       ::  0=no exception; nonzero=pending THROW value
       imm-words=cord-list    ::  names of words marked IMMEDIATE
+    ::  fuel: interpreter steps remaining.  ~ means unlimited, which is the
+    ::  bunt, so *north and every existing caller are unaffected.  /app/north
+    ::  sets a budget per command because Arvo is non-preemptive: a slow cell
+    ::  blocks the entire ship, not just its own session.  See #37.
+      fuel=(unit @ud)
   ==
 +$  buffer-map
   $:  tib=tape
@@ -299,6 +304,23 @@
   ?~  chars  st
   =/  st1  (comma ^-(@ i.chars) st)
   $(chars t.chars, st st1)
+:: ABORT-STATE - reset to interpret mode, discarding any partial definition
+::
+::   This is the only escape from compile mode.  An unterminated `: FOO ...`
+::   leaves state=%.n, and /app/north persists the interpreter across
+::   commands, so every later command is silently absorbed into that
+::   definition -- no error, no output, no stack change.  See #37.
+::
+::   Clears both stacks as ANS ABORT does.
+++  abort-state
+  |=  st=north
+  ^-  north
+  %=  st
+    d-stack   ~
+    r-stack   ~
+    settings  settings.st(state %.y, current-def '', create-name '', throw-val 0)
+    buffers   buffers.st(comp-buffer ~)
+  ==
 :: RUN-WORD - execute a named word against the interpreter state
 ++  run-word
   |=  [w=@t st=north]
@@ -699,6 +721,7 @@
     ?>  ?=(@ len)
     st(d-stack (push (push ds (inc:ua addr)) ^-(@ len)))
   ::  Tier 21: NOOP, -ROT, CHARS, CELL
+  ?:  =(w 'ABORT')   (abort-state st)
   ?:  =(w 'NOOP')    st
   ?:  =(w '-ROT')    st(d-stack (rot (rot ds)))
   ?:  =(w 'CHARS')   st   ::  cell size = 1, identity like CELLS
@@ -719,6 +742,11 @@
   |-
   ^-  north
   ?:  (gte:ua ip n)  st
+  ::  Out of fuel: stop where we are.  The caller sees fuel at 0 and reports
+  ::  it; nested evals each halt at their next token, so this unwinds.
+  ?:  ?&(?=(^ fuel.settings.st) =(0 u.fuel.settings.st))  st
+  =?  st  ?=(^ fuel.settings.st)
+    st(settings settings.st(fuel `(dec:ua u.fuel.settings.st)))
   =/  tok  (snag-prog ip p)
   ::  Compile mode (state=%.n): accumulate tokens into comp-buffer
   ::  ';' (as %word) is the only token that ends compilation
@@ -733,6 +761,11 @@
       ::  '[' is immediate: switch to interpret mode mid-definition
       ?:  =(w.tok '[')
         $(ip +(ip), st st(settings settings.st(state %.y)))
+      ::  ABORT is immediate.  It has to be: words do not execute in compile
+      ::  mode, so a non-immediate ABORT would be compiled into the very
+      ::  definition the user is trying to escape.
+      ?:  =(w.tok 'ABORT')
+        $(ip +(ip), st (abort-state st))
       ::  LITERAL: pop TOS and emit as number literal into comp-buffer
       ?:  =(w.tok 'LITERAL')
         =/  ds  d-stack.st
