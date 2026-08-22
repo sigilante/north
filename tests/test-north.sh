@@ -984,6 +984,48 @@ check "S> true"          "d-stack:(eval (parse \"-3 -5 S>\") *north)"   "~[$T]"
 check "< stays unsigned" "d-stack:(eval (parse \"2 5 <\") *north)"      "~[$T]"
 
 echo ""
+echo "=== ABORT: escaping compile mode ==="
+
+# An unterminated : leaves the interpreter compiling.  Because /app/north
+# persists the interpreter across commands, every later command is silently
+# absorbed into that definition -- see #37.
+check "unterminated : compiles" \
+  "state.settings:(eval (parse \": FOO 1 2 +\") *north)"          "%.n"
+# ABORT must be immediate: words do not execute in compile mode, so a plain
+# word would be compiled into the definition being escaped.
+check "ABORT escapes compile"   \
+  "state.settings:(eval (parse \": FOO 1 2 + ABORT\") *north)"    "%.y"
+check "ABORT clears stack"      \
+  "d-stack:(eval (parse \"1 2 3 ABORT\") *north)"                 "~"
+check "ABORT clears partial def" \
+  "comp-buffer.buffers:(eval (parse \": FOO 1 2 ABORT\") *north)" "~"
+# and the state really does recover across separate evals
+check "absorbed then recovered" \
+  "d-stack:(eval (parse \"3 4 +\") (eval (parse \"ABORT\") (eval (parse \"3 4 +\") (eval (parse \": FOO 1 2 +\") *north))))" \
+  "~[7]"
+
+echo ""
+echo "=== fuel: bounding a command ==="
+
+# fuel is (unit @ud); ~ is the bunt, so *north is unlimited and every
+# existing caller is unaffected.
+check "fuel unlimited by bunt" \
+  "fuel.settings:(eval (parse \"1 2 +\") *north)"                 "~"
+# a budget stops the program part-way and leaves fuel at 0
+check "fuel exhausts" \
+  "=/(s0 *north fuel.settings:(eval (parse \"1 2 + 4 5 +\") s0(settings settings.s0(fuel [~ 3]))))"  "[~ 0]"
+check "fuel halts early" \
+  "=/(s0 *north d-stack:(eval (parse \"1 2 + 4 5 +\") s0(settings settings.s0(fuel [~ 3]))))"        "~[3]"
+# an ample budget completes and leaves the remainder
+check "fuel ample completes" \
+  "=/(s0 *north d-stack:(eval (parse \"1 2 + 4 5 +\") s0(settings settings.s0(fuel [~ 99]))))"       "~[9 3]"
+check "fuel ample remainder" \
+  "=/(s0 *north fuel.settings:(eval (parse \"1 2 + 4 5 +\") s0(settings settings.s0(fuel [~ 99]))))" "[~ 93]"
+# an unbounded loop terminates instead of spinning
+check "fuel stops BEGIN AGAIN" \
+  "=/(s0 *north fuel.settings:(eval (parse \"BEGIN AGAIN\") s0(settings settings.s0(fuel [~ 500]))))" "[~ 0]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1

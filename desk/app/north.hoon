@@ -28,6 +28,22 @@
       sessions=(map sole-id:shoe session)
   ==
 +$  command  tape   ::  raw Forth input line; North's parse gate handles tokenisation
+::  step-budget: interpreter steps one command may take before it is stopped.
+::
+::    Arvo is non-preemptive, so a slow command blocks the entire ship -- other
+::    agents, other %sole sessions, networking -- not just this session, and
+::    there is no way to cancel a move once it is running.  See #37.
+::
+::    This bounds steps, not wall-clock, and the two are only related if steps
+::    cost roughly the same.  Measured: ~280k steps/sec with jetted arithmetic
+::    (#38), so this is about three or four seconds.  Without #38 a single
+::    step can be a whole unary +add, and the same budget is minutes.
+::
+::    So this is a real bound but a soft one, and it is much sharper once #38
+::    lands.  It is still worth having: it converts "blocks the ship until
+::    someone intervenes" into "blocks the ship for a bounded time, then
+::    reports".  Turn it up if legitimate work is being cut off.
+++  step-budget  1.000.000
 +$  card  card:shoe
 --
 ::
@@ -119,7 +135,13 @@
   ::  inject now, our, and desk from the bowl so NOW/OUR/INCLUDE work correctly
   =/  forth1
     %=  forth.ses
-      settings  settings.forth.ses(now now.bowl, our our.bowl, desk q.byk.bowl)
+      settings
+        %=  settings.forth.ses
+          now   now.bowl
+          our   our.bowl
+          desk  q.byk.bowl
+          fuel  `step-budget
+        ==
     ==
   =/  result  (mule |.((eval:vm (parse:vm cmd) forth1)))
   ?:  ?=([%| *] result)
@@ -131,16 +153,29 @@
     %+  turn  lines
     |=(l=tape [%shoe ~[sole-id] %sole [%txt (weld "! " l)]])
   =/  new    p.result
+  ::  Budget exhausted: the command was stopped part-way, so discard it and
+  ::  keep the pre-command interpreter, exactly as the crash path above does.
+  ?:  ?&(?=(^ fuel.settings.new) =(0 u.fuel.settings.new))
+    :_  this
+    :~  :*  %shoe  ~[sole-id]  %sole
+            :-  %txt
+            "! step budget exhausted; command stopped and discarded"
+    ==  ==
   =/  out    output.buffers.new
   =/  ds     d-stack.new
+  ::  Surface compile mode.  An unterminated `: FOO ...` leaves the
+  ::  interpreter compiling, and because forth.ses persists across commands
+  ::  every later cell is silently absorbed into that definition.  Showing it
+  ::  is how a user finds out; ABORT is how they get out.  See #37.
+  =/  mode=tape  ?:(state.settings.new "  ok" "  compiling")
   =/  ok=tape
     ?:  show-stack.ses
-      :(weld "  ok  " <ds>)
-    "  ok"
+      :(weld mode "  " <ds>)
+    mode
   :_  %=  this
         sessions
           %+  ~(put by sessions)  sole-id
-          ses(forth new(buffers buffers.new(output "")))
+          ses(forth new(buffers buffers.new(output ""), settings settings.new(fuel ~)))
       ==
   %-  zing
   :~  ?.  =(~ out)
