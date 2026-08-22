@@ -208,6 +208,16 @@
   ?>  ?=(^ s)
   ?>  ?=(@ i.s)
   [i.s t.s]
+:: POP-NOUN - remove TOS without requiring it to be an atom
+::
+::   $stak is (list *) and +push takes a *, so the stack has always been able
+::   to hold cells; only +pop refused to hand one back.  Words that genuinely
+::   need an atom keep using +pop and so still fail loudly on a cell.
+++  pop-noun
+  |=  s=stak
+  ^-  [* stak]
+  ?>  ?=(^ s)
+  [i.s t.s]
 :: FIND-DICT - look up a word in the user dictionary; case-insensitive
 ++  find-dict
   |=  [w=cord d=lexi]
@@ -625,6 +635,12 @@
     =/  d  (decode:zz n)
     =/  str=tape  ?:(-.d (num-to-tape +.d) ['-' (num-to-tape +.d)])
     st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld str ~[' ']))))
+  ?:  =(w 'NOUN.')
+    ::  ( noun -- )  print TOS as a noun, cells included; ignores current base.
+    ::  `.` deliberately still requires an atom: a printer whose output shape
+    ::  depends on what happens to be on the stack is worse than a second word.
+    =^  n  ds  (pop-noun ds)
+    st(d-stack ds, buffers buffers.st(output (weld output.buffers.st (weld <n> ~[' ']))))
   ::  NOW: push current time as @da (set by agent; 0 in lib context)
   ?:  =(w 'NOW')
     st(d-stack (push ds now.settings.st))
@@ -726,6 +742,28 @@
   ?:  =(w '-ROT')    st(d-stack (rot (rot ds)))
   ?:  =(w 'CHARS')   st   ::  cell size = 1, identity like CELLS
   ?:  =(w 'CELL')    st(d-stack (push ds 1))
+  ::  Tier 22: noun literals
+  ::
+  ::    +parse turns `[ 1 2 3 ]` into
+  ::      1 MAKE-ATOM 2 MAKE-ATOM 3 MAKE-ATOM MAKE-CELL MAKE-CELL
+  ::    which right-folds to [1 [2 3]].  Brackets nest, because +noun-lit-one
+  ::    recurses through +noun-lit-list.
+  ::
+  ::    Interception is guarded by +is-pure-noun, which only admits %num and
+  ::    nested brackets, so `[ 2 3 + ] LITERAL` still means Tier 14
+  ::    metaprogramming rather than a noun.  That guard is why this dispatch
+  ::    can exist at all: 23a1360 reverted an unguarded version for breaking
+  ::    exactly that case.
+  ::
+  ::    MAKE-ATOM is a no-op.  The parser only emits it directly after a %num,
+  ::    so the value is already an atom on the stack; it exists so that every
+  ::    element passes through the same shape.
+  ?:  =(w 'MAKE-ATOM')  st
+  ?:  =(w 'MAKE-CELL')
+    ::  ( a b -- [a b] )
+    =^  top   ds  (pop-noun ds)
+    =^  next  ds  (pop-noun ds)
+    st(d-stack (push ds [next top]))
   ::  Tier 20: IMMEDIATE — mark last-defined word as immediate
   ?:  =(w 'IMMEDIATE')
     =/  lname  last-def.settings.st

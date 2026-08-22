@@ -1026,6 +1026,31 @@ check "fuel stops BEGIN AGAIN" \
   "=/(s0 *north fuel.settings:(eval (parse \"BEGIN AGAIN\") s0(settings settings.s0(fuel [~ 500]))))" "[~ 0]"
 
 echo ""
+echo "=== Tier 22: noun literals ==="
+
+# `[ 1 2 3 ]` builds a real cell on the stack, right-folded to [1 [2 3]]
+check "noun literal flat"   "d-stack:(eval (parse \"[ 1 2 3 ]\") *north)"          "~[[1 2 3]]"
+# a two-element literal is a plain cell
+check "noun literal pair"   "d-stack:(eval (parse \"[ 4 5 ]\") *north)"            "~[[4 5]]"
+# brackets nest, because +noun-lit-one recurses through +noun-lit-list
+check "noun literal nested" "d-stack:(eval (parse \"[ 1 [ 2 3 ] 4 ]\") *north)"    "~[[1 [2 3] 4]]"
+check "noun literal pairs"  "d-stack:(eval (parse \"[ [ 1 2 ] [ 3 4 ] ]\") *north)" "~[[[1 2] 3 4]]"
+# the stack shuffling words are structural, so they carry cells unchanged
+check "noun literal dup"    "d-stack:(eval (parse \"[ 1 2 ] dup\") *north)"        "~[[1 2] [1 2]]"
+check "noun literal swap"   "d-stack:(eval (parse \"[ 1 2 ] 9 swap\") *north)"     "~[[1 2] 9]"
+
+# NOUN. prints cells; `.` still requires an atom and is unchanged
+check "NOUN. cell"          "output.buffers:(eval (parse \"[ 1 2 3 ] NOUN.\") *north)"     "\"[1 2 3] \""
+check "NOUN. nested"        "output.buffers:(eval (parse \"[ 1 [ 2 3 ] 4 ] NOUN.\") *north)" "\"[1 [2 3] 4] \""
+check "NOUN. atom"          "output.buffers:(eval (parse \"42 NOUN.\") *north)"            "\"42 \""
+check "NOUN. consumes"      "d-stack:(eval (parse \"[ 1 2 ] NOUN.\") *north)"              "~"
+
+# The +is-pure-noun guard keeps Tier 14 metaprogramming working: a bracket
+# group containing any non-numeric word is NOT a noun literal.  23a1360
+# reverted an unguarded version of this dispatch for breaking exactly that.
+check "guard: word inside" "d-stack:(eval (parse \": f  [ 2 3 + ] LITERAL ;  f\") *north)"  "~[5]"
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS  Failed: $FAIL"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
